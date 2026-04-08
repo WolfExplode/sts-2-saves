@@ -11,6 +11,7 @@
     <Sts2Dir>D:\Games\SteamLibrary\steamapps\common\Slay the Spire 2</Sts2Dir>
     <Sts2DataDir>$(Sts2Dir)\data_sts2_windows_x86_64</Sts2DataDir>
     <DistDir>$(TargetDir)dist\</DistDir>
+    <DistStageDir>$(DistDir)stage\</DistStageDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +28,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="localization\**\*.json" />
+    <DistLocalizationFiles Include="localization\**\*.json" />
   </ItemGroup>
 
   <Target Name="Copy Mod" AfterTargets="PostBuildEvent">
@@ -42,6 +44,12 @@
   <Target Name="Pack Dist Zip" AfterTargets="Copy Mod">
     <Message Text="Packing mod into zip file..." Importance="high" />
     <MakeDir Directories="$(DistDir)" />
-    <ZipDirectory SourceDirectory="$(Sts2Dir)\mods\$(MSBuildProjectName)" DestinationFile="$(DistDir)$(MSBuildProjectName).zip" Overwrite="true" />
+    <RemoveDir Directories="$(DistStageDir)" />
+    <MakeDir Directories="$(DistStageDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DistStageDir)" />
+    <Copy SourceFiles="$(MSBuildProjectName).json" DestinationFolder="$(DistStageDir)" />
+    <Copy SourceFiles="@(DistLocalizationFiles)" DestinationFiles="@(DistLocalizationFiles->'$(DistStageDir)localization\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <ZipDirectory SourceDirectory="$(DistStageDir)" DestinationFile="$(DistDir)$(MSBuildProjectName).zip" Overwrite="true" />
+    <RemoveDir Directories="$(DistStageDir)" />
   </Target>
 </Project>
