@@ -9,6 +9,7 @@ using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.PauseMenu;
 using MegaCrit.Sts2.Core.Runs;
 using NyMod.Saves.Bootstrap;
+using NyMod.Saves.Features.SaveArchive.Logic;
 using NyMod.Saves.Features.SaveBrowser.Logic;
 using NyMod.Saves.Infrastructure.Localization;
 
@@ -82,17 +83,24 @@ internal static class PauseMenuHooks
 		}
 
 		bool isClient = RunManager.Instance.NetService.Type == NetGameType.Client;
-		bool canSaveOrLoad = RunManager.Instance.IsInProgress && !isClient;
-		state.SaveButton.Visible = !isClient;
+		bool canSave = RunManager.Instance.IsInProgress;
+		bool canLoad = canSave && !isClient;
+		state.SaveButton.Visible = true;
 		state.LoadButton.Visible = !isClient;
-		if (canSaveOrLoad)
+		if (canSave)
 		{
 			state.SaveButton.Enable();
-			state.LoadButton.Enable();
 		}
 		else
 		{
 			state.SaveButton.Disable();
+		}
+		if (canLoad)
+		{
+			state.LoadButton.Enable();
+		}
+		else
+		{
 			state.LoadButton.Disable();
 		}
 	}
@@ -111,8 +119,17 @@ internal static class PauseMenuHooks
 
 	private static void OnManualSavePressed(NPauseMenu _)
 	{
-		bool isMultiplayer = RunManager.Instance.NetService.Type == NetGameType.Host;
-		bool saved = ServiceRegistry.ArchiveService.CaptureManualSnapshot(isMultiplayer, note: "pause_menu_manual_save");
+		bool isClient = RunManager.Instance.NetService.Type == NetGameType.Client;
+		bool saved;
+		if (isClient)
+		{
+			saved = ServiceRegistry.ArchiveService.CaptureFromMemory(SaveArchiveKind.Manual, note: "pause_menu_client_manual_save");
+		}
+		else
+		{
+			bool isMultiplayer = RunManager.Instance.NetService.Type == NetGameType.Host;
+			saved = ServiceRegistry.ArchiveService.CaptureManualSnapshot(isMultiplayer, note: "pause_menu_manual_save");
+		}
 		if (saved)
 		{
 			NErrorPopup? popup = NErrorPopup.Create(

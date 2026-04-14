@@ -483,6 +483,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 				SaveUiText.Keys.SaveBrowser.SaveLabel,
 				("Kind", kind),
 				("Characters", string.Join(", ", save.Summary.CharacterIds)),
+				("Act", save.Summary.CurrentActIndex + 1),
 				("Floor", save.Summary.EstimatedFloor),
 				("Created", save.CreatedUtc.LocalDateTime.ToString("g")))
 			: SaveUiText.Format(
@@ -524,6 +525,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 			("Created", save.CreatedUtc.LocalDateTime.ToString("g")),
 			("Characters", string.Join(", ", save.Summary.CharacterIds)),
 			("Players", save.Summary.PlayerCount),
+			("Act", save.Summary.CurrentActIndex + 1),
 			("Floor", save.Summary.EstimatedFloor),
 			("Ascension", save.Summary.Ascension),
 			("Hp", hp),
