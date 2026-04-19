@@ -4,6 +4,9 @@
 # .NET build outputs
 bin/
 obj/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
 
 # Visual Studio / VS Code local state
 .vs/
@@ -12,9 +15,16 @@ obj/
 *.rsuser
 *.suo
 
+# JetBrains Rider / IntelliJ
+.idea/
+
+# ReSharper / Rider user-specific layered settings
+*.DotSettings.user
+
 # OS/editor noise
 Thumbs.db
 Desktop.ini
+.DS_Store
 
 # Local release artifacts
 dist/

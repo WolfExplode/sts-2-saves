@@ -35,33 +35,3 @@ internal static class RunStartArchiveHooks
 		}
 	}
 }
-
-[HarmonyPatch(typeof(SaveManager))]
-internal static class RunArchiveCleanupHooks
-{
-	[HarmonyPatch(nameof(SaveManager.DeleteCurrentRun))]
-	[HarmonyPrefix]
-	private static void DeleteCurrentRunPrefix()
-	{
-		try
-		{
-			ServiceRegistry.ArchiveService.DeleteArchivedRunForCurrentActiveSave(isMultiplayer: false);
-		}
-		catch
-		{
-		}
-	}
-
-	[HarmonyPatch(nameof(SaveManager.DeleteCurrentMultiplayerRun))]
-	[HarmonyPrefix]
-	private static void DeleteCurrentMultiplayerRunPrefix()
-	{
-		try
-		{
-			ServiceRegistry.ArchiveService.DeleteArchivedRunForCurrentActiveSave(isMultiplayer: true);
-		}
-		catch
-		{
-		}
-	}
-}

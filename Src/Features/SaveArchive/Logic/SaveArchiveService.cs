@@ -139,18 +139,6 @@ internal sealed class SaveArchiveService
 		return CaptureCurrentSnapshot(SaveArchiveKind.Manual, isMultiplayer, note ?? "pre_new_run");
 	}
 
-	public bool DeleteArchivedRunForCurrentActiveSave(bool isMultiplayer)
-	{
-		if (!TryResolveCurrentRunId(isMultiplayer, out string? runId) || string.IsNullOrEmpty(runId))
-		{
-			return false;
-		}
-
-		_archiveStore.DeleteRun(isMultiplayer, runId);
-		Log.Info($"NyMod.Saves removed archived run '{runId}' for {(isMultiplayer ? "multiplayer" : "singleplayer")} active save cleanup");
-		return true;
-	}
-
 	public bool TryGetCurrentRunId(bool isMultiplayer, out string? runId)
 	{
 		return TryResolveCurrentRunId(isMultiplayer, out runId);
