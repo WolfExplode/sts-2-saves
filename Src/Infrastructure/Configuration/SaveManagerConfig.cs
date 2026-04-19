@@ -18,7 +18,7 @@ internal sealed class SaveManagerConfig
 	public AutosaveRetentionMode AutosaveRetentionMode { get; set; } = AutosaveRetentionMode.CapLatest;
 
 	[JsonPropertyName("autosave_cap_per_run")]
-	public int AutosaveCapPerRun { get; set; } = 10;
+	public int AutosaveCapPerRun { get; set; } = 100;
 
 	[JsonPropertyName("capture_multiplayer_autosaves")]
 	public bool CaptureMultiplayerAutosaves { get; set; } = true;
