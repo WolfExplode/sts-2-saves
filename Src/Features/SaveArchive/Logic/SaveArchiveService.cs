@@ -1,7 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using MegaCrit.Sts2.Core.Logging;
+using MegaCrit.Sts2.Core.Multiplayer.Game;
+using MegaCrit.Sts2.Core.Rooms;
+using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Saves.Runs;
 using NyMod.Saves.Features.SaveArchive.Models;
 using NyMod.Saves.Infrastructure.Configuration;
 
@@ -70,6 +77,61 @@ internal sealed class SaveArchiveService
 	public bool CaptureManualSnapshot(bool isMultiplayer, string? note = null)
 	{
 		return CaptureCurrentSnapshot(SaveArchiveKind.Manual, isMultiplayer, note);
+	}
+
+	public bool CaptureFromMemory(SaveArchiveKind kind, string? note = null)
+	{
+		if (!RunManager.Instance.IsInProgress)
+		{
+			Log.Warn("NyMod.Saves cannot capture from memory: no run in progress.");
+			return false;
+		}
+
+		try
+		{
+			SerializableRun serializableRun = RunManager.Instance.ToSave(null);
+			using MemoryStream stream = new MemoryStream();
+			JsonSerializer.Serialize(stream, serializableRun, JsonSerializationUtility.GetTypeInfo<SerializableRun>());
+			byte[] payloadBytes = stream.ToArray();
+
+			bool isMultiplayer = RunManager.Instance.NetService.Type.IsMultiplayer();
+			SaveManagerConfig config = _configStore.LoadOrDefault();
+			if (kind == SaveArchiveKind.Auto && isMultiplayer && !config.CaptureMultiplayerAutosaves)
+			{
+				Log.Info("NyMod.Saves skipped client memory autosave capture because config disabled multiplayer autosaves.");
+				return false;
+			}
+
+			SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
+			string runId = _runIdentityService.ResolveRunId(summary, payloadBytes, isMultiplayer);
+			DateTimeOffset createdUtc = DateTimeOffset.UtcNow;
+			string saveId = BuildSaveId(kind, createdUtc);
+			SaveArchiveMetadata metadata = new SaveArchiveMetadata
+			{
+				RunId = runId,
+				SaveId = saveId,
+				Kind = kind,
+				IsMultiplayer = isMultiplayer,
+				SourceFileName = "memory_capture",
+				CreatedUtc = createdUtc,
+				Note = note,
+				Summary = summary
+			};
+
+			_archiveStore.SaveSnapshot(metadata, payloadBytes);
+			if (kind == SaveArchiveKind.Auto && config.AutosaveRetentionMode == AutosaveRetentionMode.CapLatest)
+			{
+				_archiveStore.TrimAutosaves(runId, isMultiplayer, config.AutosaveCapPerRun);
+			}
+
+			Log.Info($"NyMod.Saves archived from memory {(isMultiplayer ? "multiplayer" : "singleplayer")} {kind} snapshot '{saveId}' under run '{runId}'");
+			return true;
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves failed to capture from memory: {ex.Message}");
+			return false;
+		}
 	}
 
 	public bool PreserveCurrentRunBeforeReplacement(bool isMultiplayer, string? note = null)

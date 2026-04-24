@@ -8,7 +8,8 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <PathMap>$(MSBuildProjectDirectory)=/src</PathMap>
 
-    <Sts2Dir>D:\Games\SteamLibrary\steamapps\common\Slay the Spire 2</Sts2Dir>
+    <Sts2Dir Condition="'$(STS2_GAME_DIR)' != ''">$(STS2_GAME_DIR)</Sts2Dir>
+    <Sts2Dir Condition="'$(Sts2Dir)' == ''">D:\Games\SteamLibrary\steamapps\common\Slay the Spire 2</Sts2Dir>
     <Sts2DataDir>$(Sts2Dir)\data_sts2_windows_x86_64</Sts2DataDir>
     <DistDir>$(TargetDir)dist\</DistDir>
     <DistStageDir>$(DistDir)stage\</DistStageDir>
