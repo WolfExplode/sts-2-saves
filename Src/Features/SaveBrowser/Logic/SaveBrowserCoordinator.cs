@@ -25,6 +25,7 @@ using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Bootstrap;
 using NyMod.Saves.Features.SaveArchive.Models;
 using NyMod.Saves.Features.SaveBrowser.Presentation;
+using NyMod.Saves.Infrastructure.Compat;
 using NyMod.Saves.Infrastructure.Localization;
 
 namespace NyMod.Saves.Features.SaveBrowser.Logic;
@@ -153,7 +154,8 @@ internal static class SaveBrowserCoordinator
 
 		SerializableRun serializableRun = readSaveResult.SaveData;
 		RunState runState = RunState.FromSerializable(serializableRun);
-		RunManager.Instance.SetUpSavedSinglePlayer(runState, serializableRun);
+		// Cross-branch shim: SetUpSavedSinglePlayer is `void` on public, `async Task` on beta.
+		await RunManagerCompat.SetUpSavedSinglePlayer(RunManager.Instance, runState, serializableRun);
 		NAudioManager.Instance?.StopMusic();
 		SfxCmd.Play(runState.Players[0].Character.CharacterTransitionSfx);
 		await NGame.Instance!.Transition.FadeOut(0.8f, runState.Players[0].Character.CharacterSelectTransitionPath);
