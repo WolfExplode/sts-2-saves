@@ -81,12 +81,6 @@ internal sealed class SaveArchiveService
 
 	public bool CaptureFromMemory(SaveArchiveKind kind, string? note = null)
 	{
-		if (!RunManager.Instance.IsInProgress)
-		{
-			Log.Warn("NyMod.Saves cannot capture from memory: no run in progress.");
-			return false;
-		}
-
 		try
 		{
 			SerializableRun serializableRun = RunManager.Instance.ToSave(null);

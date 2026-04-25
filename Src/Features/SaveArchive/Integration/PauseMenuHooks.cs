@@ -83,26 +83,10 @@ internal static class PauseMenuHooks
 		}
 
 		bool isClient = RunManager.Instance.NetService.Type == NetGameType.Client;
-		bool canSave = RunManager.Instance.IsInProgress;
-		bool canLoad = canSave && !isClient;
 		state.SaveButton.Visible = true;
 		state.LoadButton.Visible = !isClient;
-		if (canSave)
-		{
-			state.SaveButton.Enable();
-		}
-		else
-		{
-			state.SaveButton.Disable();
-		}
-		if (canLoad)
-		{
-			state.LoadButton.Enable();
-		}
-		else
-		{
-			state.LoadButton.Disable();
-		}
+		state.SaveButton.Enable();
+		state.LoadButton.Enable();
 	}
 
 	private static void RefreshFocusNeighbors(Control buttonContainer)
