@@ -28,8 +28,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Suppress SDK default content-copy globs so localization JSONs do NOT land in
+         mods/STS2Saves/, where the game's recursive ModManager would mistakenly try
+         to load them as mod manifests (and log [ERROR] for each). They are read at
+         runtime from the embedded resource stream, not from disk. -->
+    <None Remove="localization\**\*.json" />
+    <Content Remove="localization\**\*.json" />
     <EmbeddedResource Include="localization\**\*.json" />
-    <DistLocalizationFiles Include="localization\**\*.json" />
   </ItemGroup>
 
   <Target Name="Copy Mod" AfterTargets="PostBuildEvent">
@@ -49,7 +54,6 @@
     <MakeDir Directories="$(DistStageDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DistStageDir)" />
     <Copy SourceFiles="$(MSBuildProjectName).json" DestinationFolder="$(DistStageDir)" />
-    <Copy SourceFiles="@(DistLocalizationFiles)" DestinationFiles="@(DistLocalizationFiles->'$(DistStageDir)localization\%(RecursiveDir)%(Filename)%(Extension)')" />
     <ZipDirectory SourceDirectory="$(DistStageDir)" DestinationFile="$(DistDir)$(MSBuildProjectName).zip" Overwrite="true" />
     <RemoveDir Directories="$(DistStageDir)" />
   </Target>

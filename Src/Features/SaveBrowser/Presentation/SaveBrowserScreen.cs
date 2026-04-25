@@ -323,7 +323,25 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 			return;
 		}
 
-		await SaveBrowserCoordinator.LoadSnapshotAsync(save, _request.LaunchedFromRun);
+		// Visual + interaction guard: dim the button immediately so a second click
+		// (mouse double-click, accidental keyboard repeat, etc.) cannot fire while
+		// the load is in flight. The coordinator also has a re-entrancy guard.
+		if (_loadButton != null)
+		{
+			_loadButton.Disabled = true;
+		}
+
+		try
+		{
+			await SaveBrowserCoordinator.LoadSnapshotAsync(save, _request.LaunchedFromRun);
+		}
+		finally
+		{
+			if (_loadButton != null && Godot.GodotObject.IsInstanceValid(_loadButton))
+			{
+				_loadButton.Disabled = false;
+			}
+		}
 	}
 
 	private void OnBackupPressed()

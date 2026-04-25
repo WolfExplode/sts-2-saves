@@ -25,6 +25,7 @@ using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Bootstrap;
 using NyMod.Saves.Features.SaveArchive.Models;
 using NyMod.Saves.Features.SaveBrowser.Presentation;
+using NyMod.Saves.Infrastructure.Compat;
 using NyMod.Saves.Infrastructure.Localization;
 
 namespace NyMod.Saves.Features.SaveBrowser.Logic;
@@ -32,6 +33,9 @@ namespace NyMod.Saves.Features.SaveBrowser.Logic;
 internal static class SaveBrowserCoordinator
 {
 	private static readonly Dictionary<ulong, SaveBrowserScreen> _screens = new Dictionary<ulong, SaveBrowserScreen>();
+	private static int _loadInFlight;
+
+	internal static bool IsLoadInFlight => System.Threading.Volatile.Read(ref _loadInFlight) != 0;
 
 	public static void OpenForMainMenu(NMainMenu mainMenu, bool isMultiplayer)
 	{
@@ -51,18 +55,34 @@ internal static class SaveBrowserCoordinator
 
 	public static async Task<bool> LoadSnapshotAsync(SaveArchiveMetadata metadata, bool launchedFromRun)
 	{
-		if (!ServiceRegistry.ArchiveService.RestoreSnapshot(metadata))
+		// Re-entrancy guard: prevent double-click (or any concurrent caller) from
+		// invoking RunManager.SetUpSavedSinglePlayer twice, which throws
+		// InvalidOperationException("State is already set.").
+		if (System.Threading.Interlocked.CompareExchange(ref _loadInFlight, 1, 0) != 0)
 		{
-			ShowPopup(SaveUiText.Keys.Popup.LoadFailedTitle, SaveUiText.Keys.Popup.RestoreFailedBody);
+			Log.Info("[NyMod.Saves] Ignoring duplicate LoadSnapshotAsync request; a load is already in progress.");
 			return false;
 		}
 
-		if (metadata.IsMultiplayer)
+		try
 		{
-			return await LoadMultiplayerAsync(launchedFromRun);
-		}
+			if (!ServiceRegistry.ArchiveService.RestoreSnapshot(metadata))
+			{
+				ShowPopup(SaveUiText.Keys.Popup.LoadFailedTitle, SaveUiText.Keys.Popup.RestoreFailedBody);
+				return false;
+			}
 
-		return await LoadSingleplayerAsync(launchedFromRun);
+			if (metadata.IsMultiplayer)
+			{
+				return await LoadMultiplayerAsync(launchedFromRun);
+			}
+
+			return await LoadSingleplayerAsync(launchedFromRun);
+		}
+		finally
+		{
+			System.Threading.Volatile.Write(ref _loadInFlight, 0);
+		}
 	}
 
 	public static void DeleteSnapshot(SaveArchiveMetadata metadata)
@@ -153,7 +173,8 @@ internal static class SaveBrowserCoordinator
 
 		SerializableRun serializableRun = readSaveResult.SaveData;
 		RunState runState = RunState.FromSerializable(serializableRun);
-		RunManager.Instance.SetUpSavedSinglePlayer(runState, serializableRun);
+		// Cross-branch shim: SetUpSavedSinglePlayer is `void` on public, `async Task` on beta.
+		await RunManagerCompat.SetUpSavedSinglePlayer(RunManager.Instance, runState, serializableRun);
 		NAudioManager.Instance?.StopMusic();
 		SfxCmd.Play(runState.Players[0].Character.CharacterTransitionSfx);
 		await NGame.Instance!.Transition.FadeOut(0.8f, runState.Players[0].Character.CharacterSelectTransitionPath);
