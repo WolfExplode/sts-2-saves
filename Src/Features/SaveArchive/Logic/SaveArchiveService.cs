@@ -149,6 +149,12 @@ internal sealed class SaveArchiveService
 			SaveArchiveMetadata? latest = autos.Concat(manuals)
 				.OrderByDescending(static snapshot => snapshot.CreatedUtc)
 				.FirstOrDefault();
+			// Ignore empty run folders/metadata stubs: they are not loadable and should not
+			// keep Continue visible in the main menu.
+			if (latest == null)
+			{
+				continue;
+			}
 
 			records.Add(new RunArchiveRecord
 			{

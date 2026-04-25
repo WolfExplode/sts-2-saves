@@ -31,7 +31,7 @@ internal static class MultiplayerMenuHooks
 		NSubmenuButton loadButton = traverse.Field("_loadButton").GetValue<NSubmenuButton>();
 		NSubmenuButton abandonButton = traverse.Field("_abandonButton").GetValue<NSubmenuButton>();
 		hostButton.Visible = true;
-		loadButton.Visible = hasArchivedRuns || loadButton.Visible;
+		loadButton.Visible = hasArchivedRuns;
 		abandonButton.Visible = false;
 	}
 }

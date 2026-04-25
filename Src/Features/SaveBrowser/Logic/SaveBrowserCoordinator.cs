@@ -37,6 +37,15 @@ internal static class SaveBrowserCoordinator
 
 	internal static bool IsLoadInFlight => System.Threading.Volatile.Read(ref _loadInFlight) != 0;
 
+	/// <summary>
+	/// Re-runs <see cref="NMainMenu.RefreshButtons"/> so our postfix can hide Continue when the archive
+	/// is empty. Vanilla does not always refresh the main menu when the save browser closes.
+	/// </summary>
+	internal static void RefreshMainMenuAfterArchiveChange()
+	{
+		NGame.Instance?.MainMenu?.RefreshButtons();
+	}
+
 	public static void OpenForMainMenu(NMainMenu mainMenu, bool isMultiplayer)
 	{
 		Open(mainMenu.SubmenuStack, new SaveBrowserRequest(isMultiplayer, false));

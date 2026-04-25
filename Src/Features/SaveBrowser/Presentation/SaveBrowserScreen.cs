@@ -37,6 +37,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 	private Button _abandonRunButton = null!;
 	private SaveNoteEditDialog _noteDialog = null!;
 	private string? _selectedKey;
+	private bool _wasVisibleForMainMenuRefresh;
 
 	protected override Control? InitialFocusedControl => _tree;
 
@@ -62,6 +63,8 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		ConnectViewportSignals();
 		ApplyViewportLayout();
 		Refresh();
+		_wasVisibleForMainMenuRefresh = Visible;
+		VisibilityChanged += OnVisibilityChangedRefreshMainMenu;
 	}
 
 	protected override void ConnectSignals()
@@ -75,6 +78,16 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		_deleteSaveButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnDeleteSavePressed));
 		_deleteRunButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnDeleteRunPressed));
 		_abandonRunButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnAbandonRunPressed));
+	}
+
+	private void OnVisibilityChangedRefreshMainMenu()
+	{
+		bool wasVisible = _wasVisibleForMainMenuRefresh;
+		_wasVisibleForMainMenuRefresh = Visible;
+		if (wasVisible && !Visible)
+		{
+			SaveBrowserCoordinator.RefreshMainMenuAfterArchiveChange();
+		}
 	}
 
 	public override void OnSubmenuOpened()
@@ -427,6 +440,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		string? preferredKey = _selectedKey;
 		SaveBrowserCoordinator.DeleteRun(_request.IsMultiplayer, runId);
 		Refresh(preferredKey);
+		SaveBrowserCoordinator.RefreshMainMenuAfterArchiveChange();
 	}
 
 	private async void OnAbandonRunPressed()
@@ -455,6 +469,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 		SaveBrowserCoordinator.DeleteRun(_request.IsMultiplayer, runId);
 		Refresh();
+		SaveBrowserCoordinator.RefreshMainMenuAfterArchiveChange();
 	}
 
 	private bool TryGetSelectedRunId(out string? runId)
