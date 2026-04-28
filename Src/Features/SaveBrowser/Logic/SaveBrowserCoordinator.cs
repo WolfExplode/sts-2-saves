@@ -66,6 +66,15 @@ internal static class SaveBrowserCoordinator
 
 		try
 		{
+			// IMPORTANT: when invoked from a running game, return to main menu BEFORE
+			// restoring the snapshot bytes. The game's leave-game flow triggers an
+			// autosave (especially in multiplayer host) that would otherwise overwrite
+			// the restored payload with the live run we are trying to leave.
+			if (launchedFromRun)
+			{
+				await NGame.Instance!.ReturnToMainMenu();
+			}
+
 			if (!ServiceRegistry.ArchiveService.RestoreSnapshot(metadata))
 			{
 				ShowPopup(SaveUiText.Keys.Popup.LoadFailedTitle, SaveUiText.Keys.Popup.RestoreFailedBody);
@@ -74,10 +83,10 @@ internal static class SaveBrowserCoordinator
 
 			if (metadata.IsMultiplayer)
 			{
-				return await LoadMultiplayerAsync(launchedFromRun);
+				return await LoadMultiplayerAsync();
 			}
 
-			return await LoadSingleplayerAsync(launchedFromRun);
+			return await LoadSingleplayerAsync();
 		}
 		finally
 		{
@@ -157,13 +166,8 @@ internal static class SaveBrowserCoordinator
 		stack.Push(screen);
 	}
 
-	private static async Task<bool> LoadSingleplayerAsync(bool launchedFromRun)
+	private static async Task<bool> LoadSingleplayerAsync()
 	{
-		if (launchedFromRun)
-		{
-			await NGame.Instance!.ReturnToMainMenu();
-		}
-
 		ReadSaveResult<SerializableRun> readSaveResult = SaveManager.Instance.LoadRunSave();
 		if (!readSaveResult.Success || readSaveResult.SaveData == null)
 		{
@@ -184,31 +188,26 @@ internal static class SaveBrowserCoordinator
 		return true;
 	}
 
-	private static async Task<bool> LoadMultiplayerAsync(bool launchedFromRun)
+	private static Task<bool> LoadMultiplayerAsync()
 	{
-		if (launchedFromRun)
-		{
-			await NGame.Instance!.ReturnToMainMenu();
-		}
-
 		PlatformType platformType = (SteamInitializer.Initialized && !CommandLineHelper.HasArg("fastmp")) ? PlatformType.Steam : PlatformType.None;
 		ReadSaveResult<SerializableRun> readSaveResult = SaveManager.Instance.LoadAndCanonicalizeMultiplayerRunSave(PlatformUtil.GetLocalPlayerId(platformType));
 		if (!readSaveResult.Success || readSaveResult.SaveData == null)
 		{
 			ShowPopup(SaveUiText.Keys.Popup.LoadFailedTitle, SaveUiText.Keys.Popup.MultiplayerUnreadableBody);
-			return false;
+			return Task.FromResult(false);
 		}
 
 		NMainMenu? mainMenu = NGame.Instance!.MainMenu;
 		if (mainMenu == null)
 		{
 			ShowPopup(SaveUiText.Keys.Popup.LoadFailedTitle, SaveUiText.Keys.Popup.MultiplayerMainMenuMissingBody);
-			return false;
+			return Task.FromResult(false);
 		}
 
 		NMultiplayerSubmenu submenu = mainMenu.OpenMultiplayerSubmenu();
 		submenu.StartHost(readSaveResult.SaveData);
-		return true;
+		return Task.FromResult(true);
 	}
 
 	private static bool OpenFolder(string path)

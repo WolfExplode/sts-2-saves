@@ -3,7 +3,7 @@
   "name": "STS2Saves",
   "author": "Ny",
   "description": "A mod that allows you to manage and manipulate game saves.",
-  "version": "1.0.1",
+  "version": "1.0.2.0",
   "has_pck": false,
   "has_dll": true,
   "dependencies": [], 

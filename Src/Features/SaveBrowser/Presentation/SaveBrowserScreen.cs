@@ -12,6 +12,8 @@ using NyMod.Saves.Bootstrap;
 using NyMod.Saves.Features.SaveArchive.Logic;
 using NyMod.Saves.Features.SaveArchive.Models;
 using NyMod.Saves.Features.SaveBrowser.Logic;
+using NyMod.Saves.Features.SaveEdit.Logic;
+using NyMod.Saves.Features.SaveEdit.Presentation;
 using NyMod.Saves.Infrastructure.Localization;
 
 namespace NyMod.Saves.Features.SaveBrowser.Presentation;
@@ -32,10 +34,12 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 	private Button _backupButton = null!;
 	private Button _openFolderButton = null!;
 	private Button _editNoteButton = null!;
+	private Button _editSaveButton = null!;
 	private Button _deleteSaveButton = null!;
 	private Button _deleteRunButton = null!;
 	private Button _abandonRunButton = null!;
 	private SaveNoteEditDialog _noteDialog = null!;
+	private SaveEditDialog _editDialog = null!;
 	private string? _selectedKey;
 
 	protected override Control? InitialFocusedControl => _tree;
@@ -72,6 +76,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		_backupButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnBackupPressed));
 		_openFolderButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnOpenFolderPressed));
 		_editNoteButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnEditNotePressed));
+		_editSaveButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnEditSavePressed));
 		_deleteSaveButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnDeleteSavePressed));
 		_deleteRunButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnDeleteRunPressed));
 		_abandonRunButton.Connect(BaseButton.SignalName.Pressed, Callable.From(OnAbandonRunPressed));
@@ -178,6 +183,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		_backupButton = CreateActionButton(SaveUiText.Get(SaveUiText.Keys.SaveBrowser.Backup));
 		_openFolderButton = CreateActionButton(SaveUiText.Get(SaveUiText.Keys.SaveBrowser.OpenFolder));
 		_editNoteButton = CreateActionButton(SaveUiText.Get(SaveUiText.Keys.SaveBrowser.EditNote));
+		_editSaveButton = CreateActionButton(SaveUiText.Get(SaveEditUiText.Keys.EditSave));
 		_deleteSaveButton = CreateActionButton(SaveUiText.Get(SaveUiText.Keys.SaveBrowser.DeleteSave));
 		_deleteRunButton = CreateActionButton(SaveUiText.Get(SaveUiText.Keys.SaveBrowser.DeleteRun));
 		_abandonRunButton = CreateActionButton(SaveUiText.GetFromTable(SaveUiText.MainMenuTable, "ABANDON_RUN"));
@@ -186,12 +192,16 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		actions.AddChild(_backupButton);
 		actions.AddChild(_openFolderButton);
 		actions.AddChild(_editNoteButton);
+		actions.AddChild(_editSaveButton);
 		actions.AddChild(_deleteSaveButton);
 		actions.AddChild(_deleteRunButton);
 		actions.AddChild(_abandonRunButton);
 
 		_noteDialog = new SaveNoteEditDialog();
 		AddChild(_noteDialog);
+
+		_editDialog = new SaveEditDialog();
+		AddChild(_editDialog);
 
 		PackedScene backButtonScene = PreloadManager.Cache.GetScene(BackButtonScenePath);
 		NBackButton backButton = backButtonScene.Instantiate<NBackButton>(PackedScene.GenEditState.Disabled);
@@ -309,6 +319,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		bool hasRun = _selectedKey != null && (_runsByKey.ContainsKey(_selectedKey) || hasSnapshot);
 		_loadButton.Disabled = !hasSnapshot;
 		_deleteSaveButton.Disabled = !hasSnapshot;
+		_editSaveButton.Disabled = !hasSnapshot;
 		_backupButton.Disabled = !hasRun;
 		_openFolderButton.Disabled = !hasRun;
 		_editNoteButton.Disabled = !hasRun;
@@ -417,6 +428,20 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		Refresh(preferredKey);
 	}
 
+	private async void OnEditSavePressed()
+	{
+		if (_selectedKey == null || !_snapshotsByKey.TryGetValue(_selectedKey, out SaveArchiveMetadata? save))
+		{
+			return;
+		}
+
+		bool applied = await _editDialog.ShowAsync(save);
+		if (applied)
+		{
+			Refresh();
+		}
+	}
+
 	private void OnDeleteRunPressed()
 	{
 		if (!TryGetSelectedRunId(out string? runId) || string.IsNullOrEmpty(runId))
@@ -500,7 +525,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 			? SaveUiText.Format(
 				SaveUiText.Keys.SaveBrowser.SaveLabel,
 				("Kind", kind),
-				("Characters", string.Join(", ", save.Summary.CharacterIds)),
+				("Characters", string.Join(", ", save.Summary.CharacterIds.Select(CharacterDisplayHelper.LocalizedName))),
 				("Act", save.Summary.CurrentActIndex + 1),
 				("Floor", save.Summary.EstimatedFloor),
 				("Created", save.CreatedUtc.LocalDateTime.ToString("g")))
@@ -541,7 +566,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 			("RunId", save.RunId),
 			("Kind", kind),
 			("Created", save.CreatedUtc.LocalDateTime.ToString("g")),
-			("Characters", string.Join(", ", save.Summary.CharacterIds)),
+			("Characters", string.Join(", ", save.Summary.CharacterIds.Select(CharacterDisplayHelper.LocalizedName))),
 			("Players", save.Summary.PlayerCount),
 			("Act", save.Summary.CurrentActIndex + 1),
 			("Floor", save.Summary.EstimatedFloor),

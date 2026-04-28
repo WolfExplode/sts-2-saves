@@ -37,6 +37,11 @@
       <HintPath>$(Sts2VersionDir)\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+    <Reference Include="Steamworks.NET">
+      <HintPath>$(Sts2VersionDir)\Steamworks.NET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

@@ -54,6 +54,23 @@ internal sealed class SaveArchivePathResolver
 		return true;
 	}
 
+	/// <summary>
+	/// Resolves the mode directory <c>archiveRoot/&lt;multiplayer|singleplayer&gt;</c>
+	/// (the parent of <c>runs/</c>). Used to detect whether the auto-capture sweep
+	/// has ever run for this mode on this profile.
+	/// </summary>
+	public bool TryGetModeDirectory(bool isMultiplayer, out string? modeDirectory)
+	{
+		modeDirectory = null;
+		if (!TryGetArchiveRoot(out string? archiveRoot) || string.IsNullOrEmpty(archiveRoot))
+		{
+			return false;
+		}
+
+		modeDirectory = Path.Combine(archiveRoot, isMultiplayer ? "multiplayer" : "singleplayer");
+		return true;
+	}
+
 	public bool TryGetRunRoot(bool isMultiplayer, string runId, out string? runRoot)
 	{
 		runRoot = null;
