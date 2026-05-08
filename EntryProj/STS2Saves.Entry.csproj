@@ -38,7 +38,7 @@
 
   <ItemGroup>
     <!-- Shared loader source, compiled into every mod's entry assembly. -->
-    <Compile Include="$(MSBuildThisFileDirectory)..\..\loader\VersionedModLoader.cs" Link="Shared\VersionedModLoader.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\loader\*.cs" LinkBase="Shared" />
   </ItemGroup>
 
   <!-- Stage the mod manifest JSON next to the entry DLL so the packing step
