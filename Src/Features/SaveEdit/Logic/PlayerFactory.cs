@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using MegaCrit.Sts2.Core.Entities.Ascension;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Rngs;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.Unlocks;
@@ -15,12 +18,13 @@ internal static class PlayerFactory
 	/// <summary>
 	/// Build a fresh <see cref="SerializablePlayer"/> from scratch using the chosen character's
 	/// starting deck, relics, HP, gold etc. Uses the game's own <see cref="Player.CreateForNewRun"/>
-	/// path and serializes the result so we don't have to construct sub-objects manually.
+	/// path, mirrors run-start ascension effects, and serializes the result so we don't have
+	/// to construct sub-objects manually.
 	/// Also pre-populates the per-player <c>RelicGrabBag</c> so downstream auto-reward logic
 	/// (see <see cref="RelicPreroller"/>) can pull predetermined relic ids without hitting the
 	/// fallback every time.
 	/// </summary>
-	public static SerializablePlayer BuildFromCharacter(ModelId characterId, ulong netId)
+	public static SerializablePlayer BuildFromCharacter(ModelId characterId, ulong netId, int ascensionLevel)
 	{
 		if (characterId == null || characterId == ModelId.none)
 		{
@@ -35,7 +39,31 @@ internal static class PlayerFactory
 		Rng grabBagRng = new Rng((uint)((long)StringHelper.GetDeterministicHashCode("relic_grab_bag") + (long)netId), 0);
 		player.PopulateRelicGrabBagIfNecessary(grabBagRng);
 
-		return player.ToSerializable();
+		SerializablePlayer serializablePlayer = player.ToSerializable();
+		ApplyRunStartAscensionEffects(serializablePlayer, ascensionLevel);
+		return serializablePlayer;
+	}
+
+	private static void ApplyRunStartAscensionEffects(SerializablePlayer player, int ascensionLevel)
+	{
+		AscensionManager ascensionManager = new AscensionManager(ascensionLevel);
+
+		if (ascensionManager.HasLevel(AscensionLevel.TightBelt))
+		{
+			player.MaxPotionSlotCount = Math.Max(0, player.MaxPotionSlotCount - 1);
+			player.Potions.RemoveAll(p => p.SlotIndex >= player.MaxPotionSlotCount);
+		}
+
+		if (ascensionManager.HasLevel(AscensionLevel.AscendersBane))
+		{
+			ModelId ascendersBaneId = ModelDb.Card<AscendersBane>().Id;
+			if (!player.Deck.Any(c => c.Id == ascendersBaneId))
+			{
+				CardModel ascendersBane = ModelDb.Card<AscendersBane>().ToMutable();
+				ascendersBane.FloorAddedToDeck = 1;
+				player.Deck.Add(ascendersBane.ToSerializable());
+			}
+		}
 	}
 
 	/// <summary>

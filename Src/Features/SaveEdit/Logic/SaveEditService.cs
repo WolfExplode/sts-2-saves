@@ -186,7 +186,7 @@ internal sealed class SaveEditService
 							Log.Warn("NyMod.Saves SaveEditService: FromEmpty requires CharacterIdOverride.");
 							continue;
 						}
-						newPlayer = PlayerFactory.BuildFromCharacter(spec.CharacterIdOverride, spec.NetId);
+						newPlayer = PlayerFactory.BuildFromCharacter(spec.CharacterIdOverride, spec.NetId, run.Ascension);
 						break;
 
 					case AddPlayerMode.Clone:
