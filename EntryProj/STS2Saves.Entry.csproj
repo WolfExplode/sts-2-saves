@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    STS2Saves ENTRY assembly. This is the DLL the game's mod loader actually
+    sees (matches `id` in STS2Saves.json). It contains nothing but the
+    [ModInitializer] stub + the shared VersionedModLoader (compiled in via
+    a linked source file). At runtime it picks the right STS2Saves.<v>.dll
+    sibling and forwards Init.
+
+    References sts2.dll v0.103.2 (the OLDEST supported version) for three
+    stable symbols only: ModInitializerAttribute, ReleaseInfoManager, Log.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>true</ImplicitUsings>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+
+    <!-- Pin to oldest supported version so the entry is binary-compatible
+         with every newer game build. -->
+    <Sts2EntryRefVersion>v0.103.2</Sts2EntryRefVersion>
+    <Sts2EntryRefDir>$(MSBuildThisFileDirectory)..\..\game-versions\$(Sts2EntryRefVersion)</Sts2EntryRefDir>
+
+    <ModId>STS2Saves</ModId>
+    <AssemblyName>$(ModId)</AssemblyName>
+    <RootNamespace>NyMod.Saves.EntryAsm</RootNamespace>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="sts2">
+      <HintPath>$(Sts2EntryRefDir)\sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared loader source, compiled into every mod's entry assembly. -->
+    <Compile Include="$(MSBuildThisFileDirectory)..\..\loader\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+  <!-- Stage the mod manifest JSON next to the entry DLL so the packing step
+       (scripts/Pack-Mods.ps1) can grab both from this output dir. -->
+  <Target Name="Stage Mod Manifest" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\$(ModId).json" DestinationFolder="$(OutputPath)" />
+  </Target>
+</Project>

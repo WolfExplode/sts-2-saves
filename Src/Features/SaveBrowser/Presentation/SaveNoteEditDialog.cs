@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Godot;
 using NyMod.Saves.Infrastructure.Localization;
+using NyMod.Saves.Infrastructure.Ui;
 
 namespace NyMod.Saves.Features.SaveBrowser.Presentation;
 
@@ -33,6 +34,7 @@ internal sealed partial class SaveNoteEditDialog : ConfirmationDialog
 		_label.Text = label;
 		_editor.Text = initialNote ?? string.Empty;
 		_pendingResult = new TaskCompletionSource<SaveNoteEditResult>();
+		DialogThemeAdopter.AdoptParentTheme(this);
 		PopupCentered(GetPopupSize());
 		CallDeferred(MethodName.FocusEditor);
 		return _pendingResult.Task;

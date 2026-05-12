@@ -190,9 +190,44 @@ internal sealed class SaveArchiveStore
 		return _pathResolver.TryGetRunRoot(isMultiplayer, runId, out runDirectory);
 	}
 
+	/// <summary>
+	/// Returns true when the per-mode archive directory
+	/// (<c>nymod.saves/archive/&lt;multiplayer|singleplayer&gt;</c>) already exists,
+	/// indicating the auto-capture sweep has run at least once for this mode.
+	/// </summary>
+	public bool ModeDirectoryExists(bool isMultiplayer)
+	{
+		if (!_pathResolver.TryGetModeDirectory(isMultiplayer, out string? modeDirectory) || string.IsNullOrEmpty(modeDirectory))
+		{
+			return false;
+		}
+
+		return Directory.Exists(modeDirectory);
+	}
+
 	public bool TryGetSnapshotDirectory(SaveArchiveMetadata metadata, out string? snapshotDirectory)
 	{
 		return _pathResolver.TryGetSnapshotDirectory(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, out snapshotDirectory);
+	}
+
+	public bool TryReadSnapshotPayload(SaveArchiveMetadata metadata, out byte[]? payloadBytes)
+	{
+		payloadBytes = null;
+		if (!_pathResolver.TryGetPayloadPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string? payloadPath) || string.IsNullOrEmpty(payloadPath) || !File.Exists(payloadPath))
+		{
+			return false;
+		}
+
+		try
+		{
+			payloadBytes = File.ReadAllBytes(payloadPath);
+			return true;
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves failed to read snapshot payload '{payloadPath}': {ex.Message}");
+			return false;
+		}
 	}
 
 	public bool TryRestoreSnapshot(SaveArchiveMetadata metadata)

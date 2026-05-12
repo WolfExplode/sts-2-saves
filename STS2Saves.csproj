@@ -1,4 +1,9 @@
 <Project Sdk="Godot.NET.Sdk/4.5.1">
+  <!--
+    STS2Saves IMPLEMENTATION project. Builds one DLL per supported game version
+    (selected via -p:Sts2Version=v0.103.2 etc). The thin entry assembly that
+    the game's mod loader sees lives in EntryProj/STS2Saves.Entry.csproj.
+  -->
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>true</ImplicitUsings>
@@ -8,21 +13,33 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <PathMap>$(MSBuildProjectDirectory)=/src</PathMap>
 
-    <Sts2Dir Condition="'$(STS2_GAME_DIR)' != ''">$(STS2_GAME_DIR)</Sts2Dir>
-    <Sts2Dir Condition="'$(Sts2Dir)' == ''">D:\Games\SteamLibrary\steamapps\common\Slay the Spire 2</Sts2Dir>
-    <Sts2DataDir>$(Sts2Dir)\data_sts2_windows_x86_64</Sts2DataDir>
-    <DistDir>$(TargetDir)dist\</DistDir>
-    <DistStageDir>$(DistDir)stage\</DistStageDir>
+    <!-- Per-version build inputs. Set Sts2Version on the command line: -p:Sts2Version=v0.104.0 -->
+    <Sts2Version Condition="'$(Sts2Version)' == ''">v0.103.2</Sts2Version>
+    <Sts2VersionDir>$(MSBuildThisFileDirectory)..\game-versions\$(Sts2Version)</Sts2VersionDir>
+
+    <ModId>STS2Saves</ModId>
+    <AssemblyName>$(ModId).$(Sts2Version)</AssemblyName>
+    <RootNamespace>NyMod.Saves</RootNamespace>
+    <OutputPath>bin\$(Configuration)\$(Sts2Version)\</OutputPath>
+
+    <!-- Per-version capability flags drive #if blocks in the compat layer. -->
+    <!-- Per-version preprocessor symbols (STS2_V<N>, STS2_V_GE_<N>) come from
+         Directory.Build.props at the workspace root. -->
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="sts2">
-      <HintPath>$(Sts2DataDir)\sts2.dll</HintPath>
+      <HintPath>$(Sts2VersionDir)\sts2.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <Reference Include="0Harmony">
-      <HintPath>$(Sts2DataDir)\0Harmony.dll</HintPath>
+      <HintPath>$(Sts2VersionDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="Steamworks.NET">
+      <HintPath>$(Sts2VersionDir)\Steamworks.NET.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
@@ -35,26 +52,15 @@
     <None Remove="localization\**\*.json" />
     <Content Remove="localization\**\*.json" />
     <EmbeddedResource Include="localization\**\*.json" />
+
+    <!-- The Entry project compiles its own files; skip them here. -->
+    <Compile Remove="EntryProj\**\*.cs" />
+    <None Remove="EntryProj\**\*" />
   </ItemGroup>
 
-  <Target Name="Copy Mod" AfterTargets="PostBuildEvent">
-    <Message Text="Copying mod to Slay the Spire 2 mods folder..." Importance="high" />
-    <MakeDir Directories="$(Sts2Dir)\mods\" />
-    <MakeDir Directories="$(Sts2Dir)\mods\$(MSBuildProjectName)\" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Sts2Dir)\mods\$(MSBuildProjectName)\" />
-    <Copy SourceFiles="$(MSBuildProjectName).json" DestinationFolder="$(Sts2Dir)/mods/$(MSBuildProjectName)/" />
-    <RemoveDir Directories="$(Sts2Dir)\mods\$(MSBuildProjectName)\localization" />
-    <RemoveDir Directories="$(Sts2Dir)\mods\$(MSBuildProjectName)\eng" />
-    <RemoveDir Directories="$(Sts2Dir)\mods\$(MSBuildProjectName)\zhs" />
-  </Target>
-  <Target Name="Pack Dist Zip" AfterTargets="Copy Mod">
-    <Message Text="Packing mod into zip file..." Importance="high" />
-    <MakeDir Directories="$(DistDir)" />
-    <RemoveDir Directories="$(DistStageDir)" />
-    <MakeDir Directories="$(DistStageDir)" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(DistStageDir)" />
-    <Copy SourceFiles="$(MSBuildProjectName).json" DestinationFolder="$(DistStageDir)" />
-    <ZipDirectory SourceDirectory="$(DistStageDir)" DestinationFile="$(DistDir)$(MSBuildProjectName).zip" Overwrite="true" />
-    <RemoveDir Directories="$(DistStageDir)" />
+  <!-- Stage the per-version sidecar manifest next to the impl DLL so the
+       packing step (scripts/Pack-Mods.ps1) picks it up alongside the DLL. -->
+  <Target Name="Stage Impl Manifest" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(Sts2VersionDir)\version.manifest.json" DestinationFiles="$(OutputPath)$(AssemblyName).dll.manifest" />
   </Target>
 </Project>

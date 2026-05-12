@@ -133,6 +133,117 @@ internal sealed class SaveArchiveService
 		return CaptureCurrentSnapshot(SaveArchiveKind.Manual, isMultiplayer, note ?? "pre_new_run");
 	}
 
+	/// <summary>
+	/// Scans both the singleplayer and multiplayer active-save files on disk and
+	/// archives any whose <c>runId</c> has no snapshots yet. Covers the case where
+	/// the mod was installed after a save already existed on disk, or when an
+	/// in-progress save belongs to a mode the player hasn't opened in-game since
+	/// install.
+	/// <para>
+	/// Skips per-mode scanning when <c>nymod.saves/archive/&lt;multiplayer|singleplayer&gt;</c>
+	/// already exists — once the mode directory has been created, the initial sweep
+	/// is considered done and we never re-scan automatically. Users who want the
+	/// scan to re-run can delete the mode directory.
+	/// </para>
+	/// </summary>
+	public void TryAutoCaptureExistingSavesOnDisk()
+	{
+		foreach (bool isMultiplayer in new[] { false, true })
+		{
+			string tag = isMultiplayer ? "MP" : "SP";
+			try
+			{
+				if (_archiveStore.ModeDirectoryExists(isMultiplayer))
+				{
+					Log.Info($"NyMod.Saves on-disk scan ({tag}): mode directory already exists; skipping initial sweep");
+					continue;
+				}
+
+				if (!_archiveStore.TryReadActivePayload(isMultiplayer, out byte[]? payloadBytes, out string? sourceFileName)
+					|| payloadBytes == null
+					|| string.IsNullOrEmpty(sourceFileName))
+				{
+					Log.Info($"NyMod.Saves on-disk scan ({tag}): no active payload");
+					continue;
+				}
+
+				Log.Info($"NyMod.Saves on-disk scan ({tag}): read {payloadBytes.Length} bytes from '{sourceFileName}'");
+				SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
+				string runId = _runIdentityService.ResolveRunId(summary, payloadBytes, isMultiplayer);
+				if (string.IsNullOrEmpty(runId))
+				{
+					Log.Info($"NyMod.Saves on-disk scan ({tag}): could not resolve runId");
+					continue;
+				}
+
+				IReadOnlyList<SaveArchiveMetadata> existing = ListSnapshots(isMultiplayer, runId);
+				if (existing.Count > 0)
+				{
+					Log.Info($"NyMod.Saves on-disk scan ({tag}): runId '{runId}' already has {existing.Count} snapshot(s); skipping");
+					continue;
+				}
+
+				DateTimeOffset createdUtc = DateTimeOffset.UtcNow;
+				string saveId = BuildSaveId(SaveArchiveKind.Manual, createdUtc);
+				SaveArchiveMetadata metadata = new SaveArchiveMetadata
+				{
+					RunId = runId,
+					SaveId = saveId,
+					Kind = SaveArchiveKind.Manual,
+					IsMultiplayer = isMultiplayer,
+					SourceFileName = sourceFileName,
+					CreatedUtc = createdUtc,
+					Note = "auto-captured: existing save discovered on disk",
+					Summary = summary
+				};
+
+				_archiveStore.SaveSnapshot(metadata, payloadBytes);
+				Log.Info($"NyMod.Saves auto-archived existing {(isMultiplayer ? "multiplayer" : "singleplayer")} save '{saveId}' under run '{runId}'");
+			}
+			catch (Exception ex)
+			{
+				Log.Warn($"NyMod.Saves TryAutoCaptureExistingSavesOnDisk ({(isMultiplayer ? "MP" : "SP")}) failed: {ex.Message}");
+			}
+		}
+	}
+
+	/// <summary>
+	/// If a run is currently in progress and no archived snapshot exists yet for that run
+	/// (e.g. the mod was installed mid-run, or the player hasn't autosaved since install),
+	/// captures the in-memory run as a Manual snapshot. Safe to call repeatedly — no-ops
+	/// when the run already has any archived snapshot or when no run is in progress.
+	/// Returns true if a new snapshot was captured.
+	/// </summary>
+	public bool TryAutoCaptureCurrentRunIfMissing()
+	{
+		try
+		{
+			if (!RunManager.Instance.IsInProgress)
+			{
+				return false;
+			}
+
+			bool isMultiplayer = RunManager.Instance.NetService.Type.IsMultiplayer();
+			if (!TryResolveCurrentRunId(isMultiplayer, out string? runId) || string.IsNullOrEmpty(runId))
+			{
+				return false;
+			}
+
+			IReadOnlyList<SaveArchiveMetadata> existing = ListSnapshots(isMultiplayer, runId);
+			if (existing.Count > 0)
+			{
+				return false;
+			}
+
+			return CaptureFromMemory(SaveArchiveKind.Manual, note: "auto-captured: first time mod saw this run");
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves TryAutoCaptureCurrentRunIfMissing failed: {ex.Message}");
+			return false;
+		}
+	}
+
 	public bool TryGetCurrentRunId(bool isMultiplayer, out string? runId)
 	{
 		return TryResolveCurrentRunId(isMultiplayer, out runId);
@@ -258,6 +369,44 @@ internal sealed class SaveArchiveService
 	public bool TryGetSnapshotDirectory(SaveArchiveMetadata metadata, out string? snapshotDirectory)
 	{
 		return _archiveStore.TryGetSnapshotDirectory(metadata, out snapshotDirectory);
+	}
+
+	public bool TryReadSnapshotPayload(SaveArchiveMetadata metadata, out byte[]? payloadBytes)
+	{
+		return _archiveStore.TryReadSnapshotPayload(metadata, out payloadBytes);
+	}
+
+	internal SaveArchiveStore Store => _archiveStore;
+	internal SaveArchiveSummaryFactory SummaryFactory => _summaryFactory;
+
+	public SaveArchiveMetadata? WriteEditedSnapshot(SaveArchiveMetadata source, byte[] payloadBytes, string? note)
+	{
+		try
+		{
+			SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
+			DateTimeOffset createdUtc = DateTimeOffset.UtcNow;
+			string saveId = BuildSaveId(SaveArchiveKind.Manual, createdUtc);
+			SaveArchiveMetadata metadata = new SaveArchiveMetadata
+			{
+				RunId = source.RunId,
+				SaveId = saveId,
+				Kind = SaveArchiveKind.Manual,
+				IsMultiplayer = source.IsMultiplayer,
+				SourceFileName = "save_edit",
+				CreatedUtc = createdUtc,
+				Note = NormalizeNote(note),
+				Summary = summary
+			};
+
+			_archiveStore.SaveSnapshot(metadata, payloadBytes);
+			Log.Info($"NyMod.Saves wrote edited snapshot '{saveId}' from source '{source.SaveId}' under run '{source.RunId}'.");
+			return metadata;
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves failed to write edited snapshot from '{source.SaveId}': {ex.Message}");
+			return null;
+		}
 	}
 
 	private bool TryResolveCurrentRunId(bool isMultiplayer, out string? runId)
