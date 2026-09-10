@@ -1,0 +1,15 @@
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\bin\Release\net9.0\STS2Saves.json
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\bin\Release\net9.0\STS2Saves.deps.json
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\bin\Release\net9.0\STS2Saves.runtimeconfig.json
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\bin\Release\net9.0\STS2Saves.dll
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\bin\Release\net9.0\STS2Saves.pdb
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.csproj.AssemblyReference.cache
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.AssemblyInfoInputs.cache
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.AssemblyInfo.cs
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.csproj.CoreCompileInputs.cache
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.dll
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\refint\STS2Saves.dll
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.pdb
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\STS2Saves.genruntimeconfig.cache
+C:\Users\WXP\Downloads\Modding\SlayTheSpire2\STS2Saves\obj\Release\net9.0\ref\STS2Saves.dll

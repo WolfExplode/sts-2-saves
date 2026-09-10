@@ -1,66 +1,46 @@
-<Project Sdk="Godot.NET.Sdk/4.5.1">
-  <!--
-    STS2Saves IMPLEMENTATION project. Builds one DLL per supported game version
-    (selected via -p:Sts2Version=v0.103.2 etc). The thin entry assembly that
-    the game's mod loader sees lives in EntryProj/STS2Saves.Entry.csproj.
-  -->
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>true</ImplicitUsings>
-    <LangVersion>12.0</LangVersion>
-    <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    <PathMap>$(MSBuildProjectDirectory)=/src</PathMap>
-
-    <!-- Per-version build inputs. Set Sts2Version on the command line: -p:Sts2Version=v0.104.0 -->
-    <Sts2Version Condition="'$(Sts2Version)' == ''">v0.103.2</Sts2Version>
-    <Sts2VersionDir>$(MSBuildThisFileDirectory)..\game-versions\$(Sts2Version)</Sts2VersionDir>
-
-    <ModId>STS2Saves</ModId>
-    <AssemblyName>$(ModId).$(Sts2Version)</AssemblyName>
     <RootNamespace>NyMod.Saves</RootNamespace>
-    <OutputPath>bin\$(Configuration)\$(Sts2Version)\</OutputPath>
-
-    <!-- Per-version capability flags drive #if blocks in the compat layer. -->
-    <!-- Per-version preprocessor symbols (STS2_V<N>, STS2_V_GE_<N>) come from
-         Directory.Build.props at the workspace root. -->
+    <AssemblyName>STS2Saves</AssemblyName>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS0108;CS0114;CS0472;CS0184;CS8509;CS0219</NoWarn>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">$(STS2_GAME_DIR)</Sts2GameDir>
+    <Sts2GameDir Condition="'$(Sts2GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2</Sts2GameDir>
+    <Sts2DataDir Condition="$([MSBuild]::IsOSPlatform('Windows'))">data_sts2_windows_x86_64</Sts2DataDir>
+    <Sts2Dir>$(Sts2GameDir)/$(Sts2DataDir)</Sts2Dir>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="GodotSharp" Version="4.4.0">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Lib.Harmony" Version="2.4.2">
+      <Private>false</Private>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="sts2">
-      <HintPath>$(Sts2VersionDir)\sts2.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-
-    <Reference Include="0Harmony">
-      <HintPath>$(Sts2VersionDir)\0Harmony.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-
-    <Reference Include="Steamworks.NET">
-      <HintPath>$(Sts2VersionDir)\Steamworks.NET.dll</HintPath>
+      <HintPath>$(Sts2Dir)/sts2.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Suppress SDK default content-copy globs so localization JSONs do NOT land in
-         mods/STS2Saves/, where the game's recursive ModManager would mistakenly try
-         to load them as mod manifests (and log [ERROR] for each). They are read at
-         runtime from the embedded resource stream, not from disk. -->
-    <None Remove="localization\**\*.json" />
-    <Content Remove="localization\**\*.json" />
-    <EmbeddedResource Include="localization\**\*.json" />
-
-    <!-- The Entry project compiles its own files; skip them here. -->
-    <Compile Remove="EntryProj\**\*.cs" />
-    <None Remove="EntryProj\**\*" />
+    <None Include="STS2Saves.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Stage the per-version sidecar manifest next to the impl DLL so the
-       packing step (scripts/Pack-Mods.ps1) picks it up alongside the DLL. -->
-  <Target Name="Stage Impl Manifest" AfterTargets="PostBuildEvent">
-    <Copy SourceFiles="$(Sts2VersionDir)\version.manifest.json" DestinationFiles="$(OutputPath)$(AssemblyName).dll.manifest" />
-  </Target>
+  <ItemGroup>
+    <EmbeddedResource Include="Code\NyMod\Saves\Infrastructure\Localization\Resources\STS2Saves.localization.eng.sts2_saves_ui.json">
+      <LogicalName>STS2Saves.localization.eng.sts2_saves_ui.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Code\NyMod\Saves\Infrastructure\Localization\Resources\STS2Saves.localization.zhs.sts2_saves_ui.json">
+      <LogicalName>STS2Saves.localization.zhs.sts2_saves_ui.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>
