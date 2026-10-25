@@ -3,6 +3,7 @@ using System.IO;
 using Godot;
 using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Features.SaveArchive.Logic;
+using NyMod.Saves.Infrastructure.Diagnostics;
 
 namespace NyMod.Saves.Infrastructure.Persistence;
 
@@ -134,6 +135,7 @@ internal sealed class SaveArchivePathResolver
 
 	public bool TryGetActiveSavePath(bool isMultiplayer, out string? activeSavePath)
 	{
+		ModDiagnostics.Trace("Resolving active save path");
 		activeSavePath = null;
 		try
 		{
@@ -149,6 +151,9 @@ internal sealed class SaveArchivePathResolver
 
 	private static string Globalize(string path)
 	{
-		return path.StartsWith("user://", StringComparison.OrdinalIgnoreCase) ? ProjectSettings.GlobalizePath(path) : path;
+		ModDiagnostics.Trace("Globalizing save path: " + path);
+		var result = path.StartsWith("user://", StringComparison.OrdinalIgnoreCase) ? ProjectSettings.GlobalizePath(path) : path;
+		ModDiagnostics.Trace("Save path resolved");
+		return result;
 	}
 }

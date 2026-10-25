@@ -10,6 +10,7 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Features.SaveArchive.Models;
 using NyMod.Saves.Infrastructure.Configuration;
+using NyMod.Saves.Infrastructure.Diagnostics;
 
 namespace NyMod.Saves.Features.SaveArchive.Logic;
 
@@ -45,6 +46,7 @@ internal sealed class SaveArchiveService
 			return false;
 		}
 		SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
+		ModDiagnostics.Trace("Existing save summary read; resolving archive identity");
 		string text = _runIdentityService.ResolveRunId(summary, payloadBytes, isMultiplayer);
 		DateTimeOffset utcNow = DateTimeOffset.UtcNow;
 		string text2 = BuildSaveId(kind, utcNow);

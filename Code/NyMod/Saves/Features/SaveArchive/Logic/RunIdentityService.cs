@@ -1,8 +1,9 @@
 using System;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
+using Godot;
 using NyMod.Saves.Features.SaveArchive.Models;
+using NyMod.Saves.Infrastructure.Diagnostics;
 
 namespace NyMod.Saves.Features.SaveArchive.Logic;
 
@@ -23,7 +24,22 @@ internal sealed class RunIdentityService
 
 	private static string ComputeShortHash(byte[] bytes)
 	{
-		byte[] array = SHA256.HashData(bytes);
+		// Use Godot's bundled SHA-256 on every platform. The Android Mono host
+		// cannot safely use the desktop .NET native cryptography provider.
+		// Keep SHA-256 and the same eight-byte prefix to preserve archive IDs.
+		ModDiagnostics.Trace("Hashing run identity with Godot SHA-256");
+		using var context = new HashingContext();
+		if (context.Start(HashingContext.HashType.Sha256) != Error.Ok
+			|| (bytes.Length > 0 && context.Update(bytes) != Error.Ok))
+		{
+			throw new InvalidOperationException("Could not compute the save archive identity.");
+		}
+		byte[] array = context.Finish();
+		if (array.Length != 32)
+		{
+			throw new InvalidOperationException("The save archive identity hash was incomplete.");
+		}
+		ModDiagnostics.Trace("Run identity hash complete");
 		return Convert.ToHexString(array[..8]).ToLowerInvariant();
 	}
 }

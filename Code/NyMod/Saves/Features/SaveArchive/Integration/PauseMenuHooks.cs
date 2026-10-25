@@ -13,6 +13,7 @@ using NyMod.Saves.Bootstrap;
 using NyMod.Saves.Features.SaveArchive.Logic;
 using NyMod.Saves.Features.SaveBrowser.Logic;
 using NyMod.Saves.Infrastructure.Localization;
+using NyMod.Saves.Infrastructure.Diagnostics;
 
 namespace NyMod.Saves.Features.SaveArchive.Integration;
 
@@ -25,16 +26,19 @@ internal static class PauseMenuHooks
 	[HarmonyPostfix]
 	private static void ReadyPostfix(NPauseMenu __instance)
 	{
+		ModDiagnostics.Trace("Pause menu Ready postfix entered");
 		//IL_00a7: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00ad: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00c6: Unknown result type (might be due to invalid IL or missing references)
 		//IL_00cc: Unknown result type (might be due to invalid IL or missing references)
 		NPauseMenu __instance2 = __instance;
 		ulong instanceId = ((GodotObject)__instance2).GetInstanceId();
+		ModDiagnostics.Trace("Pause menu instance ID resolved");
 		if (!_states.ContainsKey(instanceId))
 		{
 			Control node = ((Node)__instance2).GetNode<Control>((NodePath)("%ButtonContainer"));
 			NPauseMenuButton node2 = ((Node)node).GetNode<NPauseMenuButton>((NodePath)("SaveAndQuit"));
+			ModDiagnostics.Trace("Pause menu button template resolved");
 			NPauseMenuButton val = CreateButton(node2, "NyManualSaveButton", "PAUSE_MENU.save");
 			NPauseMenuButton val2 = CreateButton(node2, "NyLoadSaveButton", "PAUSE_MENU.load");
 			((Node)node).AddChild((Node)(object)val, false, (Node.InternalMode)0);
@@ -54,6 +58,7 @@ internal static class PauseMenuHooks
 			};
 			RefreshButtonState(__instance2);
 			RefreshFocusNeighbors(node);
+			ModDiagnostics.Trace("Pause menu Ready postfix complete");
 		}
 	}
 
@@ -61,14 +66,18 @@ internal static class PauseMenuHooks
 	[HarmonyPostfix]
 	private static void InitializePostfix(NPauseMenu __instance)
 	{
+		ModDiagnostics.Trace("Pause menu Initialize postfix entered");
 		RefreshButtonState(__instance);
 		Control node = ((Node)__instance).GetNode<Control>((NodePath)("%ButtonContainer"));
 		RefreshFocusNeighbors(node);
+		ModDiagnostics.Trace("Pause menu Initialize postfix complete");
 	}
 
 	private static NPauseMenuButton CreateButton(NPauseMenuButton template, string name, string textKey)
 	{
+		ModDiagnostics.Trace("Duplicating pause menu button: " + name);
 		Node obj = ((Node)template).Duplicate(15);
+		ModDiagnostics.Trace("Pause menu button duplicate returned: " + name);
 		NPauseMenuButton val = (NPauseMenuButton)(object)(((obj is NPauseMenuButton) ? obj : null) ?? throw new InvalidOperationException("Failed to duplicate pause menu button template."));
 		((Node)val).Name = (StringName)(name);
 		((Node)val).GetNode<MegaLabel>((NodePath)("Label")).SetTextAutoSize(SaveUiText.Get(textKey));

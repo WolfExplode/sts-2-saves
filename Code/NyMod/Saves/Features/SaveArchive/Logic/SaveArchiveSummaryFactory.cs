@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Platform;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using NyMod.Saves.Features.SaveArchive.Models;
+using NyMod.Saves.Infrastructure.Diagnostics;
 
 namespace NyMod.Saves.Features.SaveArchive.Logic;
 
@@ -12,6 +13,7 @@ internal sealed class SaveArchiveSummaryFactory
 {
 	public SaveArchiveSummary Create(byte[] payloadBytes)
 	{
+		ModDiagnostics.Trace("Reading existing save summary");
 		//IL_0049: Unknown result type (might be due to invalid IL or missing references)
 		//IL_004e: Unknown result type (might be due to invalid IL or missing references)
 		//IL_018a: Unknown result type (might be due to invalid IL or missing references)
