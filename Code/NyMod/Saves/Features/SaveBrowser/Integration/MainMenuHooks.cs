@@ -14,7 +14,7 @@ internal static class MainMenuHooks
 	[HarmonyPrefix]
 	private static bool OnContinueButtonPressedPrefix(NMainMenu __instance)
 	{
-		SaveBrowserCoordinator.OpenForMainMenu(__instance, isMultiplayer: false);
+		SaveBrowserCoordinator.OpenForMainMenu(__instance);
 		return false;
 	}
 
@@ -22,7 +22,7 @@ internal static class MainMenuHooks
 	[HarmonyPostfix]
 	private static void RefreshButtonsPostfix(NMainMenu __instance)
 	{
-		bool visible = ServiceRegistry.ArchiveService.ListRuns(isMultiplayer: false).Count > 0;
+		bool visible = ServiceRegistry.ArchiveService.ListRuns().Count > 0;
 		Traverse val = Traverse.Create((object)__instance);
 		NMainMenuTextButton value = val.Field("_continueButton").GetValue<NMainMenuTextButton>();
 		NMainMenuTextButton value2 = val.Field("_abandonRunButton").GetValue<NMainMenuTextButton>();

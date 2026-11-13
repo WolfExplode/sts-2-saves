@@ -21,9 +21,6 @@ internal sealed class SaveArchiveMetadata
 	[JsonPropertyName("kind")]
 	public SaveArchiveKind Kind { get; set; }
 
-	[JsonPropertyName("is_multiplayer")]
-	public bool IsMultiplayer { get; set; }
-
 	[JsonPropertyName("source_file_name")]
 	public string SourceFileName { get; set; } = string.Empty;
 

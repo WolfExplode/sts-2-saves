@@ -16,10 +16,6 @@ internal sealed class SaveManagerConfig
 	public int AutosaveCapPerRun { get; set; } = 100;
 
 
-	[JsonPropertyName("capture_multiplayer_autosaves")]
-	public bool CaptureMultiplayerAutosaves { get; set; } = true;
-
-
 	[JsonPropertyName("manual_names_include_sequence")]
 	public bool ManualNamesIncludeSequence { get; set; } = true;
 

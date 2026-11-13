@@ -23,13 +23,13 @@ internal sealed class SaveArchiveStore
 		_pathResolver = pathResolver;
 	}
 
-	public bool TryReadActivePayload(bool isMultiplayer, out byte[]? payloadBytes, out string? sourceFileName)
+	public bool TryReadActivePayload(out byte[]? payloadBytes, out string? sourceFileName)
 	{
 		payloadBytes = null;
 		sourceFileName = null;
-		if (!_pathResolver.TryGetActiveSavePath(isMultiplayer, out string activeSavePath) || string.IsNullOrEmpty(activeSavePath))
+		if (!_pathResolver.TryGetActiveSavePath(out string activeSavePath) || string.IsNullOrEmpty(activeSavePath))
 		{
-			Log.Warn("NyMod.Saves could not resolve the active " + (isMultiplayer ? "multiplayer" : "singleplayer") + " save path.", 2);
+			Log.Warn("NyMod.Saves could not resolve the active save path.", 2);
 			return false;
 		}
 		string path = activeSavePath;
@@ -50,12 +50,12 @@ internal sealed class SaveArchiveStore
 
 	public void SaveSnapshot(SaveArchiveMetadata metadata, byte[] payloadBytes)
 	{
-		if (!_pathResolver.TryGetPayloadPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath))
+		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath))
 		{
 			Log.Warn("NyMod.Saves could not resolve payload path for snapshot '" + metadata.SaveId + "'.", 2);
 			return;
 		}
-		if (!_pathResolver.TryGetMetadataPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
+		if (!_pathResolver.TryGetMetadataPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
 		{
 			Log.Warn("NyMod.Saves could not resolve metadata path for snapshot '" + metadata.SaveId + "'.", 2);
 			return;
@@ -72,7 +72,7 @@ internal sealed class SaveArchiveStore
 
 	public bool TryUpdateSnapshotMetadata(SaveArchiveMetadata metadata)
 	{
-		if (!_pathResolver.TryGetMetadataPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
+		if (!_pathResolver.TryGetMetadataPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
 		{
 			Log.Warn("NyMod.Saves could not resolve metadata path for snapshot '" + metadata.SaveId + "'.", 2);
 			return false;
@@ -86,9 +86,9 @@ internal sealed class SaveArchiveStore
 		return true;
 	}
 
-	public IReadOnlyList<SaveArchiveMetadata> LoadSnapshotsForRun(bool isMultiplayer, string runId, SaveArchiveKind kind)
+	public IReadOnlyList<SaveArchiveMetadata> LoadSnapshotsForRun(string runId, SaveArchiveKind kind)
 	{
-		if (!_pathResolver.TryGetSnapshotDirectory(isMultiplayer, runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory) || !Directory.Exists(snapshotDirectory))
+		if (!_pathResolver.TryGetSnapshotDirectory(runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory) || !Directory.Exists(snapshotDirectory))
 		{
 			return Array.Empty<SaveArchiveMetadata>();
 		}
@@ -112,20 +112,20 @@ internal sealed class SaveArchiveStore
 		return list.OrderByDescending((SaveArchiveMetadata snapshot) => snapshot.CreatedUtc).ToList();
 	}
 
-	public IReadOnlyList<string> LoadRunIds(bool isMultiplayer)
+	public IReadOnlyList<string> LoadRunIds()
 	{
-		if (!_pathResolver.TryGetModeRoot(isMultiplayer, out string modeRoot) || string.IsNullOrEmpty(modeRoot) || !Directory.Exists(modeRoot))
+		if (!_pathResolver.TryGetRunsDirectory(out string runsDirectory) || string.IsNullOrEmpty(runsDirectory) || !Directory.Exists(runsDirectory))
 		{
 			return Array.Empty<string>();
 		}
-		return (from name in Directory.EnumerateDirectories(modeRoot).Select(Path.GetFileName)
+		return (from name in Directory.EnumerateDirectories(runsDirectory).Select(Path.GetFileName)
 			where !string.IsNullOrEmpty(name)
 			select name).OrderBy<string, string>((string name) => name, StringComparer.Ordinal).ToList();
 	}
 
-	public RunArchiveMetadata? LoadRunMetadata(bool isMultiplayer, string runId)
+	public RunArchiveMetadata? LoadRunMetadata(string runId)
 	{
-		if (!_pathResolver.TryGetRunMetadataPath(isMultiplayer, runId, out string metadataPath) || string.IsNullOrEmpty(metadataPath) || !File.Exists(metadataPath))
+		if (!_pathResolver.TryGetRunMetadataPath(runId, out string metadataPath) || string.IsNullOrEmpty(metadataPath) || !File.Exists(metadataPath))
 		{
 			return null;
 		}
@@ -143,7 +143,7 @@ internal sealed class SaveArchiveStore
 
 	public bool TryUpdateRunMetadata(RunArchiveMetadata metadata)
 	{
-		if (!_pathResolver.TryGetRunMetadataPath(metadata.IsMultiplayer, metadata.RunId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
+		if (!_pathResolver.TryGetRunMetadataPath(metadata.RunId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
 		{
 			Log.Warn("NyMod.Saves could not resolve run metadata path for run '" + metadata.RunId + "'.", 2);
 			return false;
@@ -165,27 +165,27 @@ internal sealed class SaveArchiveStore
 		return true;
 	}
 
-	public bool TryGetRunDirectory(bool isMultiplayer, string runId, out string? runDirectory)
+	public bool TryGetRunDirectory(string runId, out string? runDirectory)
 	{
-		return _pathResolver.TryGetRunRoot(isMultiplayer, runId, out runDirectory);
+		return _pathResolver.TryGetRunRoot(runId, out runDirectory);
 	}
 
 	public bool TryGetSnapshotDirectory(SaveArchiveMetadata metadata, out string? snapshotDirectory)
 	{
-		return _pathResolver.TryGetSnapshotDirectory(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, out snapshotDirectory);
+		return _pathResolver.TryGetSnapshotDirectory(metadata.RunId, metadata.Kind, out snapshotDirectory);
 	}
 
 	public bool TryRestoreSnapshot(SaveArchiveMetadata metadata)
 	{
-		if (!_pathResolver.TryGetPayloadPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath) || !File.Exists(payloadPath))
+		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath) || !File.Exists(payloadPath))
 		{
 			return false;
 		}
-		if (!_pathResolver.TryGetActiveSavePath(metadata.IsMultiplayer, out string activeSavePath) || string.IsNullOrEmpty(activeSavePath))
+		if (!_pathResolver.TryGetActiveSavePath(out string activeSavePath) || string.IsNullOrEmpty(activeSavePath))
 		{
 			return false;
 		}
-		CreateRollback(activeSavePath, metadata.IsMultiplayer);
+		CreateRollback(activeSavePath);
 		string directoryName = Path.GetDirectoryName(activeSavePath);
 		if (!string.IsNullOrEmpty(directoryName))
 		{
@@ -196,9 +196,9 @@ internal sealed class SaveArchiveStore
 		return true;
 	}
 
-	public void DeleteRun(bool isMultiplayer, string runId)
+	public void DeleteRun(string runId)
 	{
-		if (_pathResolver.TryGetRunRoot(isMultiplayer, runId, out string runRoot) && !string.IsNullOrEmpty(runRoot) && Directory.Exists(runRoot))
+		if (_pathResolver.TryGetRunRoot(runId, out string runRoot) && !string.IsNullOrEmpty(runRoot) && Directory.Exists(runRoot))
 		{
 			Directory.Delete(runRoot, recursive: true);
 		}
@@ -206,15 +206,15 @@ internal sealed class SaveArchiveStore
 
 	public string? ExportSnapshot(SaveArchiveMetadata metadata)
 	{
-		if (!_pathResolver.TryGetPayloadPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath) || !File.Exists(payloadPath))
+		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath) || !File.Exists(payloadPath))
 		{
 			return null;
 		}
-		if (!_pathResolver.TryGetMetadataPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath) || !File.Exists(metadataPath))
+		if (!_pathResolver.TryGetMetadataPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath) || !File.Exists(metadataPath))
 		{
 			return null;
 		}
-		if (!_pathResolver.TryGetExportsDirectory(metadata.IsMultiplayer, out string exportsDirectory) || string.IsNullOrEmpty(exportsDirectory))
+		if (!_pathResolver.TryGetExportsDirectory(out string exportsDirectory) || string.IsNullOrEmpty(exportsDirectory))
 		{
 			return null;
 		}
@@ -225,13 +225,13 @@ internal sealed class SaveArchiveStore
 		return text;
 	}
 
-	public string? ExportRun(bool isMultiplayer, string runId)
+	public string? ExportRun(string runId)
 	{
-		if (!_pathResolver.TryGetRunRoot(isMultiplayer, runId, out string runRoot) || string.IsNullOrEmpty(runRoot) || !Directory.Exists(runRoot))
+		if (!_pathResolver.TryGetRunRoot(runId, out string runRoot) || string.IsNullOrEmpty(runRoot) || !Directory.Exists(runRoot))
 		{
 			return null;
 		}
-		if (!_pathResolver.TryGetExportsDirectory(isMultiplayer, out string exportsDirectory) || string.IsNullOrEmpty(exportsDirectory))
+		if (!_pathResolver.TryGetExportsDirectory(out string exportsDirectory) || string.IsNullOrEmpty(exportsDirectory))
 		{
 			return null;
 		}
@@ -240,13 +240,13 @@ internal sealed class SaveArchiveStore
 		return text;
 	}
 
-	public void TrimAutosaves(string runId, bool isMultiplayer, int maxCount)
+	public void TrimAutosaves(string runId, int maxCount)
 	{
 		if (maxCount < 1)
 		{
 			maxCount = 1;
 		}
-		IReadOnlyList<SaveArchiveMetadata> source = LoadSnapshotsForRun(isMultiplayer, runId, SaveArchiveKind.Auto);
+		IReadOnlyList<SaveArchiveMetadata> source = LoadSnapshotsForRun(runId, SaveArchiveKind.Auto);
 		foreach (SaveArchiveMetadata item in source.Skip(maxCount))
 		{
 			DeleteSnapshot(item);
@@ -255,19 +255,19 @@ internal sealed class SaveArchiveStore
 
 	public void DeleteSnapshot(SaveArchiveMetadata metadata)
 	{
-		if (_pathResolver.TryGetPayloadPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) && !string.IsNullOrEmpty(payloadPath) && File.Exists(payloadPath))
+		if (_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) && !string.IsNullOrEmpty(payloadPath) && File.Exists(payloadPath))
 		{
 			File.Delete(payloadPath);
 		}
-		if (_pathResolver.TryGetMetadataPath(metadata.IsMultiplayer, metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) && !string.IsNullOrEmpty(metadataPath) && File.Exists(metadataPath))
+		if (_pathResolver.TryGetMetadataPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) && !string.IsNullOrEmpty(metadataPath) && File.Exists(metadataPath))
 		{
 			File.Delete(metadataPath);
 		}
 	}
 
-	private void CreateRollback(string activeSavePath, bool isMultiplayer)
+	private void CreateRollback(string activeSavePath)
 	{
-		if ((File.Exists(activeSavePath) || File.Exists(activeSavePath + ".backup")) && _pathResolver.TryGetRollbackDirectory(isMultiplayer, out string rollbackDirectory) && !string.IsNullOrEmpty(rollbackDirectory))
+		if ((File.Exists(activeSavePath) || File.Exists(activeSavePath + ".backup")) && _pathResolver.TryGetRollbackDirectory(out string rollbackDirectory) && !string.IsNullOrEmpty(rollbackDirectory))
 		{
 			Directory.CreateDirectory(rollbackDirectory);
 			string text = DateTimeOffset.UtcNow.ToString("yyyyMMdd_HHmmss_fff");

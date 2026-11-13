@@ -1,5 +1,6 @@
 using System;
 using MegaCrit.Sts2.Core.Logging;
+using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Features.SaveArchive.Logic;
@@ -38,12 +39,12 @@ internal static class ServiceRegistry
 
 	private static void OnGameSaved()
 	{
-		//IL_000c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0012: Invalid comparison between Unknown and I4
 		try
 		{
-			bool isMultiplayer = (int)RunManager.Instance.NetService.Type == 2;
-			ArchiveService.CaptureCurrentSnapshot(SaveArchiveKind.Auto, isMultiplayer);
+			if (RunManager.Instance?.NetService?.Type == NetGameType.Singleplayer)
+			{
+				ArchiveService.CaptureCurrentSnapshot(SaveArchiveKind.Auto);
+			}
 		}
 		catch (Exception ex)
 		{

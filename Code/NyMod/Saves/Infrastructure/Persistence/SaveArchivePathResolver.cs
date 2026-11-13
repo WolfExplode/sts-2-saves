@@ -12,6 +12,7 @@ internal sealed class SaveArchivePathResolver
 	private const string PluginDirectory = "nymod.saves";
 
 	private const string ArchiveDirectory = "archive";
+	private const string SingleplayerDirectory = "singleplayer";
 
 	private const string RunsDirectory = "runs";
 
@@ -22,7 +23,7 @@ internal sealed class SaveArchivePathResolver
 		archiveRoot = null;
 		try
 		{
-			archiveRoot = Globalize(SaveManager.Instance.GetProfileScopedPath(Path.Combine("nymod.saves", "archive")));
+			archiveRoot = Globalize(SaveManager.Instance.GetProfileScopedPath(Path.Combine(PluginDirectory, ArchiveDirectory)));
 			return !string.IsNullOrEmpty(archiveRoot);
 		}
 		catch
@@ -36,7 +37,7 @@ internal sealed class SaveArchivePathResolver
 		configPath = null;
 		try
 		{
-			configPath = Globalize(SaveManager.Instance.GetProfileScopedPath(Path.Combine("nymod.saves", "config.json")));
+			configPath = Globalize(SaveManager.Instance.GetProfileScopedPath(Path.Combine(PluginDirectory, ConfigFileName)));
 			return !string.IsNullOrEmpty(configPath);
 		}
 		catch
@@ -45,32 +46,32 @@ internal sealed class SaveArchivePathResolver
 		}
 	}
 
-	public bool TryGetModeRoot(bool isMultiplayer, out string? modeRoot)
+	public bool TryGetRunsDirectory(out string? runsDirectory)
 	{
-		modeRoot = null;
+		runsDirectory = null;
 		if (!TryGetArchiveRoot(out string archiveRoot) || string.IsNullOrEmpty(archiveRoot))
 		{
 			return false;
 		}
-		modeRoot = Path.Combine(archiveRoot, isMultiplayer ? "multiplayer" : "singleplayer", "runs");
+		runsDirectory = Path.Combine(archiveRoot, SingleplayerDirectory, RunsDirectory);
 		return true;
 	}
 
-	public bool TryGetRunRoot(bool isMultiplayer, string runId, out string? runRoot)
+	public bool TryGetRunRoot(string runId, out string? runRoot)
 	{
 		runRoot = null;
-		if (!TryGetModeRoot(isMultiplayer, out string modeRoot) || string.IsNullOrEmpty(modeRoot))
+		if (!TryGetRunsDirectory(out string runsDirectory) || string.IsNullOrEmpty(runsDirectory))
 		{
 			return false;
 		}
-		runRoot = Path.Combine(modeRoot, runId);
+		runRoot = Path.Combine(runsDirectory, runId);
 		return true;
 	}
 
-	public bool TryGetRunMetadataPath(bool isMultiplayer, string runId, out string? metadataPath)
+	public bool TryGetRunMetadataPath(string runId, out string? metadataPath)
 	{
 		metadataPath = null;
-		if (!TryGetRunRoot(isMultiplayer, runId, out string runRoot) || string.IsNullOrEmpty(runRoot))
+		if (!TryGetRunRoot(runId, out string runRoot) || string.IsNullOrEmpty(runRoot))
 		{
 			return false;
 		}
@@ -78,32 +79,32 @@ internal sealed class SaveArchivePathResolver
 		return true;
 	}
 
-	public bool TryGetRollbackDirectory(bool isMultiplayer, out string? rollbackDirectory)
+	public bool TryGetRollbackDirectory(out string? rollbackDirectory)
 	{
 		rollbackDirectory = null;
 		if (!TryGetArchiveRoot(out string archiveRoot) || string.IsNullOrEmpty(archiveRoot))
 		{
 			return false;
 		}
-		rollbackDirectory = Path.Combine(archiveRoot, isMultiplayer ? "multiplayer" : "singleplayer", "rollback");
+		rollbackDirectory = Path.Combine(archiveRoot, SingleplayerDirectory, "rollback");
 		return true;
 	}
 
-	public bool TryGetExportsDirectory(bool isMultiplayer, out string? exportsDirectory)
+	public bool TryGetExportsDirectory(out string? exportsDirectory)
 	{
 		exportsDirectory = null;
 		if (!TryGetArchiveRoot(out string archiveRoot) || string.IsNullOrEmpty(archiveRoot))
 		{
 			return false;
 		}
-		exportsDirectory = Path.Combine(archiveRoot, isMultiplayer ? "multiplayer" : "singleplayer", "exports");
+		exportsDirectory = Path.Combine(archiveRoot, SingleplayerDirectory, "exports");
 		return true;
 	}
 
-	public bool TryGetSnapshotDirectory(bool isMultiplayer, string runId, SaveArchiveKind kind, out string? snapshotDirectory)
+	public bool TryGetSnapshotDirectory(string runId, SaveArchiveKind kind, out string? snapshotDirectory)
 	{
 		snapshotDirectory = null;
-		if (!TryGetRunRoot(isMultiplayer, runId, out string runRoot) || string.IsNullOrEmpty(runRoot))
+		if (!TryGetRunRoot(runId, out string runRoot) || string.IsNullOrEmpty(runRoot))
 		{
 			return false;
 		}
@@ -111,10 +112,10 @@ internal sealed class SaveArchivePathResolver
 		return true;
 	}
 
-	public bool TryGetPayloadPath(bool isMultiplayer, string runId, SaveArchiveKind kind, string saveId, out string? payloadPath)
+	public bool TryGetPayloadPath(string runId, SaveArchiveKind kind, string saveId, out string? payloadPath)
 	{
 		payloadPath = null;
-		if (!TryGetSnapshotDirectory(isMultiplayer, runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory))
+		if (!TryGetSnapshotDirectory(runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory))
 		{
 			return false;
 		}
@@ -122,10 +123,10 @@ internal sealed class SaveArchivePathResolver
 		return true;
 	}
 
-	public bool TryGetMetadataPath(bool isMultiplayer, string runId, SaveArchiveKind kind, string saveId, out string? metadataPath)
+	public bool TryGetMetadataPath(string runId, SaveArchiveKind kind, string saveId, out string? metadataPath)
 	{
 		metadataPath = null;
-		if (!TryGetSnapshotDirectory(isMultiplayer, runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory))
+		if (!TryGetSnapshotDirectory(runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory))
 		{
 			return false;
 		}
@@ -133,14 +134,13 @@ internal sealed class SaveArchivePathResolver
 		return true;
 	}
 
-	public bool TryGetActiveSavePath(bool isMultiplayer, out string? activeSavePath)
+	public bool TryGetActiveSavePath(out string? activeSavePath)
 	{
 		ModDiagnostics.Trace("Resolving active save path");
 		activeSavePath = null;
 		try
 		{
-			string path = (isMultiplayer ? "current_run_mp.save" : "current_run.save");
-			activeSavePath = Globalize(SaveManager.Instance.GetProfileScopedPath(Path.Combine(UserDataPathProvider.SavesDir, path)));
+			activeSavePath = Globalize(SaveManager.Instance.GetProfileScopedPath(Path.Combine(UserDataPathProvider.SavesDir, "current_run.save")));
 			return !string.IsNullOrEmpty(activeSavePath);
 		}
 		catch

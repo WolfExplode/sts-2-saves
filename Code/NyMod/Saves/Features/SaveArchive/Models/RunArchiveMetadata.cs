@@ -8,9 +8,6 @@ internal sealed class RunArchiveMetadata
 	public string RunId { get; set; } = string.Empty;
 
 
-	[JsonPropertyName("is_multiplayer")]
-	public bool IsMultiplayer { get; set; }
-
 	[JsonPropertyName("note")]
 	public string? Note { get; set; }
 }

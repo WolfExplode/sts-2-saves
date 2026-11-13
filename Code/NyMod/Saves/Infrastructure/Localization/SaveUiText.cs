@@ -16,9 +16,6 @@ internal static class SaveUiText
 
 			public const string Manual = "COMMON.manual";
 
-			public const string SingleplayerShort = "COMMON.singleplayerShort";
-
-			public const string MultiplayerShort = "COMMON.multiplayerShort";
 		}
 
 		internal static class PauseMenu
@@ -39,8 +36,6 @@ internal static class SaveUiText
 		internal static class SaveBrowser
 		{
 			public const string TitleSingleplayer = "SAVE_BROWSER.title.singleplayer";
-
-			public const string TitleMultiplayer = "SAVE_BROWSER.title.multiplayer";
 
 			public const string LoadSnapshot = "SAVE_BROWSER.action.loadSnapshot";
 
@@ -100,10 +95,6 @@ internal static class SaveUiText
 			public const string RestoreFailedBody = "POPUP.loadFailed.restoreFailed.body";
 
 			public const string SingleplayerUnreadableBody = "POPUP.loadFailed.singleplayerUnreadable.body";
-
-			public const string MultiplayerUnreadableBody = "POPUP.loadFailed.multiplayerUnreadable.body";
-
-			public const string MultiplayerMainMenuMissingBody = "POPUP.loadFailed.multiplayerMainMenuMissing.body";
 
 			public const string OpenFolderFailedTitle = "POPUP.openFolderFailed.title";
 

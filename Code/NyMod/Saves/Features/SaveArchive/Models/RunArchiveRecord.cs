@@ -9,9 +9,6 @@ internal sealed class RunArchiveRecord
 	public string RunId { get; set; } = string.Empty;
 
 
-	[JsonPropertyName("is_multiplayer")]
-	public bool IsMultiplayer { get; set; }
-
 	[JsonPropertyName("auto_save_count")]
 	public int AutoSaveCount { get; set; }
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.PauseMenu;
@@ -27,10 +28,6 @@ internal static class PauseMenuHooks
 	private static void ReadyPostfix(NPauseMenu __instance)
 	{
 		ModDiagnostics.Trace("Pause menu Ready postfix entered");
-		//IL_00a7: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ad: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00c6: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00cc: Unknown result type (might be due to invalid IL or missing references)
 		NPauseMenu __instance2 = __instance;
 		ulong instanceId = ((GodotObject)__instance2).GetInstanceId();
 		ModDiagnostics.Trace("Pause menu instance ID resolved");
@@ -45,7 +42,7 @@ internal static class PauseMenuHooks
 			((Node)node).AddChild((Node)(object)val2, false, (Node.InternalMode)0);
 			((GodotObject)val).Connect(NButton.SignalName.Released, Callable.From<NButton>((Action<NButton>)delegate
 			{
-				OnManualSavePressed(__instance2);
+				OnManualSavePressed();
 			}), 0u);
 			((GodotObject)val2).Connect(NButton.SignalName.Released, Callable.From<NButton>((Action<NButton>)delegate
 			{
@@ -87,15 +84,21 @@ internal static class PauseMenuHooks
 
 	private static void RefreshButtonState(NPauseMenu pauseMenu)
 	{
-		//IL_0027: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002d: Invalid comparison between Unknown and I4
 		if (_states.TryGetValue(((GodotObject)pauseMenu).GetInstanceId(), out PauseMenuHookState value))
 		{
-			bool flag = (int)RunManager.Instance.NetService.Type == 3;
-			((CanvasItem)value.SaveButton).Visible = true;
-			((CanvasItem)value.LoadButton).Visible = !flag;
-			((NClickableControl)value.SaveButton).Enable();
-			((NClickableControl)value.LoadButton).Enable();
+			bool isSingleplayer = IsSingleplayerRun();
+			value.SaveButton.Visible = isSingleplayer;
+			value.LoadButton.Visible = isSingleplayer;
+			if (isSingleplayer)
+			{
+				value.SaveButton.Enable();
+				value.LoadButton.Enable();
+			}
+			else
+			{
+				value.SaveButton.Disable();
+				value.LoadButton.Disable();
+			}
 		}
 	}
 
@@ -113,45 +116,33 @@ internal static class PauseMenuHooks
 		}
 	}
 
-	private static void OnManualSavePressed(NPauseMenu _)
+	private static bool IsSingleplayerRun()
 	{
-		//IL_000b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0011: Invalid comparison between Unknown and I4
-		//IL_0039: Unknown result type (might be due to invalid IL or missing references)
-		//IL_003f: Invalid comparison between Unknown and I4
-		bool flag;
-		if ((int)RunManager.Instance.NetService.Type == 3)
+		return RunManager.Instance?.NetService?.Type == NetGameType.Singleplayer;
+	}
+
+	private static void OnManualSavePressed()
+	{
+		if (!IsSingleplayerRun())
 		{
-			flag = ServiceRegistry.ArchiveService.CaptureFromMemory(SaveArchiveKind.Manual, "pause_menu_client_manual_save");
+			return;
 		}
-		else
+
+		bool saved = ServiceRegistry.ArchiveService.CaptureCurrentSnapshot(SaveArchiveKind.Manual, "pause_menu_manual_save");
+		string title = saved ? "PAUSE_MENU.manualSaveCreated.title" : "PAUSE_MENU.manualSaveFailed.title";
+		string body = saved ? "PAUSE_MENU.manualSaveCreated.body" : "PAUSE_MENU.manualSaveFailed.body";
+		NErrorPopup? popup = NErrorPopup.Create(SaveUiText.Get(title), SaveUiText.Get(body), false);
+		if (popup != null && NModalContainer.Instance != null)
 		{
-			bool isMultiplayer = (int)RunManager.Instance.NetService.Type == 2;
-			flag = ServiceRegistry.ArchiveService.CaptureManualSnapshot(isMultiplayer, "pause_menu_manual_save");
-		}
-		if (flag)
-		{
-			NErrorPopup val = NErrorPopup.Create(SaveUiText.Get("PAUSE_MENU.manualSaveCreated.title"), SaveUiText.Get("PAUSE_MENU.manualSaveCreated.body"), false);
-			if (val != null && NModalContainer.Instance != null)
-			{
-				NModalContainer.Instance.Add((Node)(object)val, true);
-			}
-		}
-		else
-		{
-			NErrorPopup val2 = NErrorPopup.Create(SaveUiText.Get("PAUSE_MENU.manualSaveFailed.title"), SaveUiText.Get("PAUSE_MENU.manualSaveFailed.body"), false);
-			if (val2 != null && NModalContainer.Instance != null)
-			{
-				NModalContainer.Instance.Add((Node)(object)val2, true);
-			}
+			NModalContainer.Instance.Add(popup, true);
 		}
 	}
 
 	private static void OnLoadPressed(NPauseMenu pauseMenu)
 	{
-		//IL_000b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0011: Invalid comparison between Unknown and I4
-		bool isMultiplayer = (int)RunManager.Instance.NetService.Type == 2;
-		SaveBrowserCoordinator.OpenForPauseMenu(pauseMenu, isMultiplayer);
+		if (IsSingleplayerRun())
+		{
+			SaveBrowserCoordinator.OpenForPauseMenu(pauseMenu);
+		}
 	}
 }

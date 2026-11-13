@@ -1,13 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using MegaCrit.Sts2.Core.Logging;
-using MegaCrit.Sts2.Core.Multiplayer.Game;
-using MegaCrit.Sts2.Core.Rooms;
-using MegaCrit.Sts2.Core.Runs;
-using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Features.SaveArchive.Models;
 using NyMod.Saves.Infrastructure.Configuration;
 using NyMod.Saves.Infrastructure.Diagnostics;
@@ -32,30 +26,24 @@ internal sealed class SaveArchiveService
 		_runIdentityService = runIdentityService;
 	}
 
-	public bool CaptureCurrentSnapshot(SaveArchiveKind kind, bool isMultiplayer, string? note = null)
+	public bool CaptureCurrentSnapshot(SaveArchiveKind kind, string? note = null)
 	{
 		SaveManagerConfig saveManagerConfig = _configStore.LoadOrDefault();
-		if (kind == SaveArchiveKind.Auto && isMultiplayer && !saveManagerConfig.CaptureMultiplayerAutosaves)
+		if (!_archiveStore.TryReadActivePayload(out byte[] payloadBytes, out string sourceFileName) || payloadBytes == null || string.IsNullOrEmpty(sourceFileName))
 		{
-			Log.Info("NyMod.Saves skipped multiplayer autosave capture because config disabled it.", 2);
-			return false;
-		}
-		if (!_archiveStore.TryReadActivePayload(isMultiplayer, out byte[] payloadBytes, out string sourceFileName) || payloadBytes == null || string.IsNullOrEmpty(sourceFileName))
-		{
-			Log.Warn($"NyMod.Saves failed to capture {(isMultiplayer ? "multiplayer" : "singleplayer")} {kind} snapshot because the active save payload was unavailable.", 2);
+			Log.Warn($"NyMod.Saves failed to capture {kind} snapshot because the active save payload was unavailable.", 2);
 			return false;
 		}
 		SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
 		ModDiagnostics.Trace("Existing save summary read; resolving archive identity");
-		string text = _runIdentityService.ResolveRunId(summary, payloadBytes, isMultiplayer);
+		string runId = _runIdentityService.ResolveRunId(summary, payloadBytes);
 		DateTimeOffset utcNow = DateTimeOffset.UtcNow;
-		string text2 = BuildSaveId(kind, utcNow);
+		string saveId = BuildSaveId(kind, utcNow);
 		SaveArchiveMetadata metadata = new SaveArchiveMetadata
 		{
-			RunId = text,
-			SaveId = text2,
+			RunId = runId,
+			SaveId = saveId,
 			Kind = kind,
-			IsMultiplayer = isMultiplayer,
 			SourceFileName = sourceFileName,
 			CreatedUtc = utcNow,
 			Note = note,
@@ -63,92 +51,37 @@ internal sealed class SaveArchiveService
 		};
 		if (kind == SaveArchiveKind.Auto && saveManagerConfig.SkipDuplicateAutosaves && IsDuplicateOfLatest(metadata))
 		{
-			Log.Info($"NyMod.Saves skipped duplicate autosave for run '{text}' because it matched the latest saved state.", 2);
+			Log.Info($"NyMod.Saves skipped duplicate autosave for run '{runId}' because it matched the latest saved state.", 2);
 			return false;
 		}
 		_archiveStore.SaveSnapshot(metadata, payloadBytes);
 		if (kind == SaveArchiveKind.Auto && saveManagerConfig.AutosaveRetentionMode == AutosaveRetentionMode.CapLatest)
 		{
-			_archiveStore.TrimAutosaves(text, isMultiplayer, saveManagerConfig.AutosaveCapPerRun);
+			_archiveStore.TrimAutosaves(runId, saveManagerConfig.AutosaveCapPerRun);
 		}
-		Log.Info($"NyMod.Saves archived {(isMultiplayer ? "multiplayer" : "singleplayer")} {kind} snapshot '{text2}' under run '{text}'", 2);
+		Log.Info($"NyMod.Saves archived {kind} snapshot '{saveId}' under run '{runId}'", 2);
 		return true;
 	}
 
-	public bool CaptureManualSnapshot(bool isMultiplayer, string? note = null)
+	public bool TryGetCurrentRunId(out string? runId)
 	{
-		return CaptureCurrentSnapshot(SaveArchiveKind.Manual, isMultiplayer, note);
-	}
-
-	public bool CaptureFromMemory(SaveArchiveKind kind, string? note = null)
-	{
-		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
-		try
+		runId = null;
+		if (!_archiveStore.TryReadActivePayload(out var payload, out _) || payload == null)
 		{
-			SerializableRun value = RunManager.Instance.ToSave((AbstractRoom)null);
-			using MemoryStream memoryStream = new MemoryStream();
-			JsonSerializer.Serialize(memoryStream, value, JsonSerializationUtility.GetTypeInfo<SerializableRun>());
-			byte[] payloadBytes = memoryStream.ToArray();
-			bool flag = NetGameTypeExtensions.IsMultiplayer(RunManager.Instance.NetService.Type);
-			SaveManagerConfig saveManagerConfig = _configStore.LoadOrDefault();
-			if (kind == SaveArchiveKind.Auto && flag && !saveManagerConfig.CaptureMultiplayerAutosaves)
-			{
-				Log.Info("NyMod.Saves skipped client memory autosave capture because config disabled multiplayer autosaves.", 2);
-				return false;
-			}
-			SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
-			string text = _runIdentityService.ResolveRunId(summary, payloadBytes, flag);
-			DateTimeOffset utcNow = DateTimeOffset.UtcNow;
-			string text2 = BuildSaveId(kind, utcNow);
-			SaveArchiveMetadata metadata = new SaveArchiveMetadata
-			{
-				RunId = text,
-				SaveId = text2,
-				Kind = kind,
-				IsMultiplayer = flag,
-				SourceFileName = "memory_capture",
-				CreatedUtc = utcNow,
-				Note = note,
-				Summary = summary
-			};
-			if (kind == SaveArchiveKind.Auto && saveManagerConfig.SkipDuplicateAutosaves && IsDuplicateOfLatest(metadata))
-			{
-				Log.Info($"NyMod.Saves skipped duplicate from-memory autosave for run '{text}' because it matched the latest saved state.", 2);
-				return false;
-			}
-			_archiveStore.SaveSnapshot(metadata, payloadBytes);
-			if (kind == SaveArchiveKind.Auto && saveManagerConfig.AutosaveRetentionMode == AutosaveRetentionMode.CapLatest)
-			{
-				_archiveStore.TrimAutosaves(text, flag, saveManagerConfig.AutosaveCapPerRun);
-			}
-			Log.Info($"NyMod.Saves archived from memory {(flag ? "multiplayer" : "singleplayer")} {kind} snapshot '{text2}' under run '{text}'", 2);
-			return true;
-		}
-		catch (Exception ex)
-		{
-			Log.Warn("NyMod.Saves failed to capture from memory: " + ex.Message, 2);
 			return false;
 		}
+		runId = _runIdentityService.ResolveRunId(_summaryFactory.Create(payload), payload);
+		return true;
 	}
 
-	public bool PreserveCurrentRunBeforeReplacement(bool isMultiplayer, string? note = null)
-	{
-		return CaptureCurrentSnapshot(SaveArchiveKind.Manual, isMultiplayer, note ?? "pre_new_run");
-	}
-
-	public bool TryGetCurrentRunId(bool isMultiplayer, out string? runId)
-	{
-		return TryResolveCurrentRunId(isMultiplayer, out runId);
-	}
-
-	public IReadOnlyList<RunArchiveRecord> ListRuns(bool isMultiplayer)
+	public IReadOnlyList<RunArchiveRecord> ListRuns()
 	{
 		List<RunArchiveRecord> list = new List<RunArchiveRecord>();
-		foreach (string item in _archiveStore.LoadRunIds(isMultiplayer))
+		foreach (string item in _archiveStore.LoadRunIds())
 		{
-			RunArchiveMetadata runArchiveMetadata = _archiveStore.LoadRunMetadata(isMultiplayer, item);
-			IReadOnlyList<SaveArchiveMetadata> readOnlyList = _archiveStore.LoadSnapshotsForRun(isMultiplayer, item, SaveArchiveKind.Auto);
-			IReadOnlyList<SaveArchiveMetadata> readOnlyList2 = _archiveStore.LoadSnapshotsForRun(isMultiplayer, item, SaveArchiveKind.Manual);
+			RunArchiveMetadata runArchiveMetadata = _archiveStore.LoadRunMetadata(item);
+			IReadOnlyList<SaveArchiveMetadata> readOnlyList = _archiveStore.LoadSnapshotsForRun(item, SaveArchiveKind.Auto);
+			IReadOnlyList<SaveArchiveMetadata> readOnlyList2 = _archiveStore.LoadSnapshotsForRun(item, SaveArchiveKind.Manual);
 			SaveArchiveMetadata saveArchiveMetadata = (from snapshot in readOnlyList.Concat(readOnlyList2)
 				orderby snapshot.CreatedUtc descending
 				select snapshot).FirstOrDefault();
@@ -157,7 +90,6 @@ internal sealed class SaveArchiveService
 				list.Add(new RunArchiveRecord
 				{
 					RunId = item,
-					IsMultiplayer = isMultiplayer,
 					AutoSaveCount = readOnlyList.Count,
 					ManualSaveCount = readOnlyList2.Count,
 					LatestSaveUtc = saveArchiveMetadata?.CreatedUtc,
@@ -169,11 +101,9 @@ internal sealed class SaveArchiveService
 		return list.OrderByDescending((RunArchiveRecord record) => record.LatestSaveUtc).ToList();
 	}
 
-	public IReadOnlyList<SaveArchiveMetadata> ListSnapshots(bool isMultiplayer, string runId)
+	public IReadOnlyList<SaveArchiveMetadata> ListSnapshots(string runId, SaveArchiveKind kind)
 	{
-		return (from snapshot in _archiveStore.LoadSnapshotsForRun(isMultiplayer, runId, SaveArchiveKind.Auto).Concat(_archiveStore.LoadSnapshotsForRun(isMultiplayer, runId, SaveArchiveKind.Manual))
-			orderby snapshot.CreatedUtc descending
-			select snapshot).ToList();
+		return _archiveStore.LoadSnapshotsForRun(runId, kind);
 	}
 
 	public bool RestoreSnapshot(SaveArchiveMetadata metadata)
@@ -193,9 +123,9 @@ internal sealed class SaveArchiveService
 		return _archiveStore.ExportSnapshot(metadata);
 	}
 
-	public string? BackupRun(bool isMultiplayer, string runId)
+	public string? BackupRun(string runId)
 	{
-		return _archiveStore.ExportRun(isMultiplayer, runId);
+		return _archiveStore.ExportRun(runId);
 	}
 
 	public void DeleteSnapshot(SaveArchiveMetadata metadata)
@@ -203,9 +133,9 @@ internal sealed class SaveArchiveService
 		_archiveStore.DeleteSnapshot(metadata);
 	}
 
-	public void DeleteRun(bool isMultiplayer, string runId)
+	public void DeleteRun(string runId)
 	{
-		_archiveStore.DeleteRun(isMultiplayer, runId);
+		_archiveStore.DeleteRun(runId);
 	}
 
 	public bool UpdateSnapshotNote(SaveArchiveMetadata metadata, string? note)
@@ -214,37 +144,24 @@ internal sealed class SaveArchiveService
 		return _archiveStore.TryUpdateSnapshotMetadata(metadata);
 	}
 
-	public bool UpdateRunNote(bool isMultiplayer, string runId, string? note)
+	public bool UpdateRunNote(string runId, string? note)
 	{
-		RunArchiveMetadata runArchiveMetadata = _archiveStore.LoadRunMetadata(isMultiplayer, runId) ?? new RunArchiveMetadata
+		RunArchiveMetadata runArchiveMetadata = _archiveStore.LoadRunMetadata(runId) ?? new RunArchiveMetadata
 		{
 			RunId = runId,
-			IsMultiplayer = isMultiplayer
 		};
 		runArchiveMetadata.Note = NormalizeNote(note);
 		return _archiveStore.TryUpdateRunMetadata(runArchiveMetadata);
 	}
 
-	public RunArchiveRecord? GetRun(bool isMultiplayer, string runId)
+	public string? GetRunNote(string runId)
 	{
-		foreach (RunArchiveRecord item in ListRuns(isMultiplayer))
-		{
-			if (string.Equals(item.RunId, runId, StringComparison.Ordinal) && item.IsMultiplayer == isMultiplayer)
-			{
-				return item;
-			}
-		}
-		return null;
+		return NormalizeNote(_archiveStore.LoadRunMetadata(runId)?.Note);
 	}
 
-	public string? GetRunNote(bool isMultiplayer, string runId)
+	public bool TryGetRunDirectory(string runId, out string? runDirectory)
 	{
-		return NormalizeNote(_archiveStore.LoadRunMetadata(isMultiplayer, runId)?.Note);
-	}
-
-	public bool TryGetRunDirectory(bool isMultiplayer, string runId, out string? runDirectory)
-	{
-		return _archiveStore.TryGetRunDirectory(isMultiplayer, runId, out runDirectory);
+		return _archiveStore.TryGetRunDirectory(runId, out runDirectory);
 	}
 
 	public bool TryGetSnapshotDirectory(SaveArchiveMetadata metadata, out string? snapshotDirectory)
@@ -252,21 +169,9 @@ internal sealed class SaveArchiveService
 		return _archiveStore.TryGetSnapshotDirectory(metadata, out snapshotDirectory);
 	}
 
-	private bool TryResolveCurrentRunId(bool isMultiplayer, out string? runId)
-	{
-		runId = null;
-		if (!_archiveStore.TryReadActivePayload(isMultiplayer, out byte[] payloadBytes, out string _) || payloadBytes == null)
-		{
-			return false;
-		}
-		SaveArchiveSummary summary = _summaryFactory.Create(payloadBytes);
-		runId = _runIdentityService.ResolveRunId(summary, payloadBytes, isMultiplayer);
-		return !string.IsNullOrEmpty(runId);
-	}
-
 	private bool IsDuplicateOfLatest(SaveArchiveMetadata candidate)
 	{
-		SaveArchiveMetadata saveArchiveMetadata = _archiveStore.LoadSnapshotsForRun(candidate.IsMultiplayer, candidate.RunId, candidate.Kind).FirstOrDefault();
+		SaveArchiveMetadata saveArchiveMetadata = _archiveStore.LoadSnapshotsForRun(candidate.RunId, candidate.Kind).FirstOrDefault();
 		if (saveArchiveMetadata == null)
 		{
 			return false;
