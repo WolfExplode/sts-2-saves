@@ -113,7 +113,7 @@ internal sealed class SaveArchiveService
 			var manualSaves = _archiveStore.LoadSnapshotsForRun(runId, SaveArchiveKind.Manual);
 			foreach (SaveArchiveMetadata snapshot in autosaves.Concat(manualSaves))
 			{
-				PopulateLegacyTotalFloor(snapshot);
+				PopulateLegacyMapFloor(snapshot);
 			}
 			SaveArchiveMetadata? latest = autosaves.Concat(manualSaves).MaxBy(snapshot => snapshot.CreatedUtc);
 			if (latest != null)
@@ -132,16 +132,16 @@ internal sealed class SaveArchiveService
 		return runs.OrderByDescending(run => run.LatestSaveUtc).ToList();
 	}
 
-	private void PopulateLegacyTotalFloor(SaveArchiveMetadata snapshot)
+	private void PopulateLegacyMapFloor(SaveArchiveMetadata snapshot)
 	{
-		if (!snapshot.Summary.SummaryAvailable || snapshot.Summary.TotalFloor.HasValue)
+		if (!snapshot.Summary.SummaryAvailable || snapshot.Summary.MapFloor.HasValue)
 		{
 			return;
 		}
 		try
 		{
 			byte[] payload = _archiveStore.ReadSnapshotPayload(snapshot);
-			snapshot.Summary.TotalFloor = _summaryFactory.Create(payload).TotalFloor;
+			snapshot.Summary.MapFloor = _summaryFactory.Create(payload).MapFloor;
 		}
 		catch (IOException ex)
 		{

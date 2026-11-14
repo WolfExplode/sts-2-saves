@@ -69,6 +69,7 @@ internal static class SaveBrowserCoordinator
 		var archive = ServiceRegistry.ArchiveService;
 		SnapshotRestore? restore = null;
 		bool runWasCleanedUp = false;
+		bool runSetupStarted = false;
 		using var profile = new SnapshotLoadProfile(launchedFromRun ? "pause menu" : "main menu");
 		bool loaded = false;
 		archive.IsRestoring = true;
@@ -99,11 +100,15 @@ internal static class SaveBrowserCoordinator
 			profile.Begin("Stop audio and clean up old run");
 			NRunMusicController.Instance?.StopMusic();
 			NAudioManager.Instance?.StopMusic();
-			runWasCleanedUp = true;
-			RunManager.Instance.CleanUp(true);
+			if (RunManager.Instance.IsInProgress)
+			{
+				runWasCleanedUp = true;
+				RunManager.Instance.CleanUp(true);
+			}
 			profile.Begin("Rebuild run state");
 			RunState state = RunState.FromSerializable(save);
 			profile.Begin("Set up saved run");
+			runSetupStarted = true;
 			await RunManagerCompat.SetUpSavedSinglePlayer(RunManager.Instance, state, save);
 			profile.Begin("Initialize reaction service");
 			NGame.Instance.ReactionContainer.InitializeNetworking(new NetSingleplayerGameService());
@@ -118,7 +123,7 @@ internal static class SaveBrowserCoordinator
 		{
 			Log.Warn($"NyMod.Saves failed to load '{metadata.SaveId}': {ex}", 2);
 			profile.Begin("Recover failed load");
-			bool recovered = await RecoverFailedLoadAsync(restore, runWasCleanedUp);
+			bool recovered = await RecoverFailedLoadAsync(restore, runWasCleanedUp || runSetupStarted);
 			ShowPopup("POPUP.loadFailed.title", recovered
 				? "POPUP.loadFailed.restoreFailed.body"
 				: "POPUP.loadFailed.recoveryFailed.body");
@@ -132,10 +137,10 @@ internal static class SaveBrowserCoordinator
 		}
 	}
 
-	private static async Task<bool> RecoverFailedLoadAsync(SnapshotRestore? restore, bool runWasCleanedUp)
+	private static async Task<bool> RecoverFailedLoadAsync(SnapshotRestore? restore, bool returnToMainMenu)
 	{
 		bool recovered = true;
-		if (runWasCleanedUp)
+		if (RunManager.Instance.IsInProgress && returnToMainMenu)
 		{
 			try
 			{
@@ -166,7 +171,7 @@ internal static class SaveBrowserCoordinator
 			recovered = false;
 			Log.Warn($"NyMod.Saves could not recover the previous save files: {ex}", 2);
 		}
-		if (runWasCleanedUp)
+		if (returnToMainMenu)
 		{
 			try
 			{

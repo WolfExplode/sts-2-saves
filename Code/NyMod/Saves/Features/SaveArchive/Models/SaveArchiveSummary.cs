@@ -34,8 +34,8 @@ internal sealed class SaveArchiveSummary
 	[JsonPropertyName("current_act_index")]
 	public int CurrentActIndex { get; set; }
 
-	[JsonPropertyName("total_floor")]
-	public int? TotalFloor { get; set; }
+	[JsonPropertyName("map_floor")]
+	public int? MapFloor { get; set; }
 
 	[JsonPropertyName("current_hp")]
 	public int? CurrentHp { get; set; }

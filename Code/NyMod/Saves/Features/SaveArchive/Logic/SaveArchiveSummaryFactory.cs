@@ -49,7 +49,9 @@ internal sealed class SaveArchiveSummaryFactory
 				RunTime = saveData.RunTime,
 				Ascension = saveData.Ascension,
 				CurrentActIndex = saveData.CurrentActIndex,
-				TotalFloor = saveData.MapPointHistory.Sum(actHistory => actHistory.Count),
+				// The game saves the new map coordinate before appending its history entry.
+				MapFloor = saveData.MapPointHistory.Take(saveData.CurrentActIndex).Sum(actHistory => actHistory.Count)
+					+ (saveData.VisitedMapCoords.Count == 0 ? 0 : saveData.VisitedMapCoords.Last().row + 1),
 				CurrentHp = ((val2 != null) ? new int?(val2.CurrentHp) : null),
 				MaxHp = ((val2 != null) ? new int?(val2.MaxHp) : null),
 				Gold = ((val2 != null) ? new int?(val2.Gold) : null)

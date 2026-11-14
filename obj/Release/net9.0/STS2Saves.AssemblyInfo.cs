@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("STS2Saves")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c8f026ada148ec38a57e75c59b1b7b332ed449ce")]
 [assembly: System.Reflection.AssemblyProductAttribute("STS2Saves")]
 [assembly: System.Reflection.AssemblyTitleAttribute("STS2Saves")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

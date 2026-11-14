@@ -492,7 +492,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 	private static string BuildSaveLabel(SaveArchiveMetadata save)
 	{
 		string item = SaveUiText.Get((save.Kind == SaveArchiveKind.Auto) ? "COMMON.auto" : "COMMON.manual");
-		return save.Summary.SummaryAvailable ? SaveUiText.Format("SAVE_BROWSER.saveLabel", ("Kind", item), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.TotalFloor?.ToString() ?? SaveUiText.Get("COMMON.unknown")), ("Created", save.CreatedUtc.LocalDateTime.ToString("g"))) : SaveUiText.Format("SAVE_BROWSER.saveLabelUnavailable", ("Kind", item), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")));
+		return save.Summary.SummaryAvailable ? SaveUiText.Format("SAVE_BROWSER.saveLabel", ("Kind", item), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.MapFloor?.ToString() ?? SaveUiText.Get("COMMON.unknown")), ("Created", save.CreatedUtc.LocalDateTime.ToString("g"))) : SaveUiText.Format("SAVE_BROWSER.saveLabelUnavailable", ("Kind", item), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")));
 	}
 
 	private static string BuildSnapshotDetails(SaveArchiveMetadata save, string? runNote)
@@ -507,7 +507,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		string item2 = save.Summary.Gold?.ToString() ?? SaveUiText.Get("COMMON.unknown");
 		string item3 = save.Summary.DailyTime?.LocalDateTime.ToString("g") ?? SaveUiText.Get("COMMON.none");
 		string item4 = SaveUiText.Get((save.Kind == SaveArchiveKind.Auto) ? "COMMON.auto" : "COMMON.manual");
-		string text3 = SaveUiText.Format("SAVE_BROWSER.snapshotDetails", ("SaveId", save.SaveId), ("RunId", save.RunId), ("Kind", item4), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.TotalFloor?.ToString() ?? SaveUiText.Get("COMMON.unknown")), ("Ascension", save.Summary.Ascension), ("Hp", item), ("Gold", item2), ("Daily", item3), ("Platform", save.Summary.PlatformType));
+		string text3 = SaveUiText.Format("SAVE_BROWSER.snapshotDetails", ("SaveId", save.SaveId), ("RunId", save.RunId), ("Kind", item4), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.MapFloor?.ToString() ?? SaveUiText.Get("COMMON.unknown")), ("Ascension", save.Summary.Ascension), ("Hp", item), ("Gold", item2), ("Daily", item3), ("Platform", save.Summary.PlatformType));
 		return text3 + "\n" + SaveUiText.Format("SAVE_BROWSER.note.snapshot", ("Note", save.Note ?? text)) + "\n" + SaveUiText.Format("SAVE_BROWSER.note.run", ("Note", runNote ?? text));
 	}
 
