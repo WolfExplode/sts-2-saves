@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
@@ -18,8 +17,10 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using NyMod.Saves.Bootstrap;
 using NyMod.Saves.Features.SaveArchive.Models;
+using NyMod.Saves.Features.SaveArchive.Logic;
 using NyMod.Saves.Features.SaveBrowser.Presentation;
 using NyMod.Saves.Infrastructure.Compat;
+using NyMod.Saves.Infrastructure.Diagnostics;
 using NyMod.Saves.Infrastructure.Localization;
 
 namespace NyMod.Saves.Features.SaveBrowser.Logic;
@@ -63,22 +64,121 @@ internal static class SaveBrowserCoordinator
 	{
 		if (Interlocked.CompareExchange(ref _loadInFlight, 1, 0) != 0)
 		{
-			Log.Info("[NyMod.Saves] Ignoring duplicate LoadSnapshotAsync request; a load is already in progress.", 2);
 			return false;
 		}
+		var archive = ServiceRegistry.ArchiveService;
+		SnapshotRestore? restore = null;
+		bool runWasCleanedUp = false;
+		using var profile = new SnapshotLoadProfile(launchedFromRun ? "pause menu" : "main menu");
+		bool loaded = false;
+		archive.IsRestoring = true;
 		try
 		{
-			if (!ServiceRegistry.ArchiveService.RestoreSnapshot(metadata))
+			if (RunManager.Instance.IsInProgress && RunManager.Instance.NetService.Type != NetGameType.Singleplayer)
 			{
-				ShowPopup("POPUP.loadFailed.title", "POPUP.loadFailed.restoreFailed.body");
-				return false;
+				throw new InvalidOperationException("Snapshots can only be loaded in singleplayer.");
 			}
-			return await LoadSingleplayerAsync(launchedFromRun);
+			profile.Begin("Wait for pending save");
+			// Complete the game's current write before replacing either save file.
+			if (SaveManager.Instance.CurrentRunSaveTask is Task pendingSave)
+			{
+				await pendingSave;
+			}
+			profile.Begin("Read snapshot and back up previous save");
+			restore = archive.PrepareRestore(metadata);
+			profile.Begin("Install save files");
+			restore.Install();
+			profile.Begin("Read and migrate save");
+			// Use the game's reader so older snapshots receive its normal migrations.
+			var read = SaveManager.Instance.LoadRunSave();
+			if (!read.Success || read.SaveData == null || read.SaveData.Players.Count != 1)
+			{
+				throw new InvalidDataException("The snapshot could not be read as a singleplayer run.");
+			}
+			SerializableRun save = read.SaveData;
+			profile.Begin("Stop audio and clean up old run");
+			NRunMusicController.Instance?.StopMusic();
+			NAudioManager.Instance?.StopMusic();
+			runWasCleanedUp = true;
+			RunManager.Instance.CleanUp(true);
+			profile.Begin("Rebuild run state");
+			RunState state = RunState.FromSerializable(save);
+			profile.Begin("Set up saved run");
+			await RunManagerCompat.SetUpSavedSinglePlayer(RunManager.Instance, state, save);
+			profile.Begin("Initialize reaction service");
+			NGame.Instance.ReactionContainer.InitializeNetworking(new NetSingleplayerGameService());
+			profile.Begin("Game LoadRun");
+			await NGame.Instance.LoadRun(state, save.PreFinishedRoom);
+			profile.Begin("Update archive metadata");
+			archive.MarkRestored(metadata);
+			loaded = true;
+			return true;
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves failed to load '{metadata.SaveId}': {ex}", 2);
+			profile.Begin("Recover failed load");
+			bool recovered = await RecoverFailedLoadAsync(restore, runWasCleanedUp);
+			ShowPopup("POPUP.loadFailed.title", recovered
+				? "POPUP.loadFailed.restoreFailed.body"
+				: "POPUP.loadFailed.recoveryFailed.body");
+			return false;
 		}
 		finally
 		{
+			archive.IsRestoring = false;
 			Volatile.Write(ref _loadInFlight, 0);
+			profile.Report(loaded);
 		}
+	}
+
+	private static async Task<bool> RecoverFailedLoadAsync(SnapshotRestore? restore, bool runWasCleanedUp)
+	{
+		bool recovered = true;
+		if (runWasCleanedUp)
+		{
+			try
+			{
+				RunManager.Instance.CleanUp(true);
+			}
+			catch (Exception ex)
+			{
+				Log.Warn($"NyMod.Saves cleanup after failed load failed: {ex}", 2);
+			}
+		}
+		try
+		{
+			if (SaveManager.Instance.CurrentRunSaveTask is Task pendingSave)
+			{
+				await pendingSave;
+			}
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves pending write failed during recovery: {ex}", 2);
+		}
+		try
+		{
+			restore?.RollBack();
+		}
+		catch (Exception ex)
+		{
+			recovered = false;
+			Log.Warn($"NyMod.Saves could not recover the previous save files: {ex}", 2);
+		}
+		if (runWasCleanedUp)
+		{
+			try
+			{
+				await NGame.Instance.ReturnToMainMenu();
+			}
+			catch (Exception ex)
+			{
+				recovered = false;
+				Log.Warn($"NyMod.Saves could not return to the main menu: {ex}", 2);
+			}
+		}
+		return recovered;
 	}
 
 	public static bool OpenFolderForSnapshot(SaveArchiveMetadata metadata)
@@ -116,45 +216,15 @@ internal static class SaveBrowserCoordinator
 			((CanvasItem)value).Visible = false;
 			((Node)stack).AddChild((Node)(object)value, false, (Node.InternalMode)0);
 			_screens[instanceId] = value;
+			value.TreeExited += () => _screens.Remove(instanceId);
 		}
 		value.Configure(launchedFromRun);
 		stack.Push((NSubmenu)(object)value);
 	}
 
-	private static async Task<bool> LoadSingleplayerAsync(bool launchedFromRun)
-	{
-		if (launchedFromRun)
-		{
-			await NGame.Instance.ReturnToMainMenu();
-		}
-		ReadSaveResult<SerializableRun> readSaveResult = SaveManager.Instance.LoadRunSave();
-		if (!readSaveResult.Success || readSaveResult.SaveData == null)
-		{
-			ShowPopup("POPUP.loadFailed.title", "POPUP.loadFailed.singleplayerUnreadable.body");
-			return false;
-		}
-		SerializableRun serializableRun = readSaveResult.SaveData;
-		RunState runState = RunState.FromSerializable(serializableRun);
-		await RunManagerCompat.SetUpSavedSinglePlayer(RunManager.Instance, runState, serializableRun);
-		NAudioManager instance = NAudioManager.Instance;
-		if (instance != null)
-		{
-			instance.StopMusic();
-		}
-		SfxCmd.Play(runState.Players[0].Character.CharacterTransitionSfx, 1f);
-		await NGame.Instance.Transition.FadeOut(0.8f, runState.Players[0].Character.CharacterSelectTransitionPath, (CancellationToken?)null);
-		NGame.Instance.ReactionContainer.InitializeNetworking((INetGameService)new NetSingleplayerGameService());
-		await NGame.Instance.LoadRun(runState, serializableRun.PreFinishedRoom);
-		await NGame.Instance.Transition.FadeIn(0.8f, "res://materials/transitions/fade_transition_mat.tres", (CancellationToken?)null);
-		return true;
-	}
 
 	private static bool OpenFolder(string path)
 	{
-		//IL_0046: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_004f: Invalid comparison between Unknown and I8
 		if (!Directory.Exists(path))
 		{
 			ShowPopup("POPUP.openFolderFailed.title", "POPUP.openFolderFailed.body", ("Path", path));

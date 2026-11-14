@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using MegaCrit.Sts2.Core.Logging;
 using NyMod.Saves.Features.SaveArchive.Models;
@@ -26,7 +27,26 @@ internal sealed class SaveArchiveService
 		_runIdentityService = runIdentityService;
 	}
 
+	public bool IsRestoring { get; set; }
+
 	public bool CaptureCurrentSnapshot(SaveArchiveKind kind, string? note = null)
+	{
+		if (IsRestoring)
+		{
+			return false;
+		}
+		try
+		{
+			return CaptureSnapshot(kind, note);
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves could not capture {kind} snapshot: {ex}", 2);
+			return false;
+		}
+	}
+
+	private bool CaptureSnapshot(SaveArchiveKind kind, string? note)
 	{
 		SaveManagerConfig saveManagerConfig = _configStore.LoadOrDefault();
 		if (!_archiveStore.TryReadActivePayload(out byte[] payloadBytes, out string sourceFileName) || payloadBytes == null || string.IsNullOrEmpty(sourceFileName))
@@ -49,15 +69,25 @@ internal sealed class SaveArchiveService
 			Note = note,
 			Summary = summary
 		};
-		if (kind == SaveArchiveKind.Auto && saveManagerConfig.SkipDuplicateAutosaves && IsDuplicateOfLatest(metadata))
+		if (kind == SaveArchiveKind.Auto && saveManagerConfig.SkipDuplicateAutosaves && IsDuplicateOfLatest(metadata, payloadBytes))
 		{
 			Log.Info($"NyMod.Saves skipped duplicate autosave for run '{runId}' because it matched the latest saved state.", 2);
 			return false;
 		}
-		_archiveStore.SaveSnapshot(metadata, payloadBytes);
+		if (!_archiveStore.SaveSnapshot(metadata, payloadBytes))
+		{
+			return false;
+		}
 		if (kind == SaveArchiveKind.Auto && saveManagerConfig.AutosaveRetentionMode == AutosaveRetentionMode.CapLatest)
 		{
-			_archiveStore.TrimAutosaves(runId, saveManagerConfig.AutosaveCapPerRun);
+			try
+			{
+				_archiveStore.TrimAutosaves(runId, saveManagerConfig.AutosaveCapPerRun);
+			}
+			catch (Exception ex)
+			{
+				Log.Warn($"NyMod.Saves saved '{saveId}', but could not trim older autosaves: {ex}", 2);
+			}
 		}
 		Log.Info($"NyMod.Saves archived {kind} snapshot '{saveId}' under run '{runId}'", 2);
 		return true;
@@ -76,46 +106,74 @@ internal sealed class SaveArchiveService
 
 	public IReadOnlyList<RunArchiveRecord> ListRuns()
 	{
-		List<RunArchiveRecord> list = new List<RunArchiveRecord>();
-		foreach (string item in _archiveStore.LoadRunIds())
+		var runs = new List<RunArchiveRecord>();
+		foreach (string runId in _archiveStore.LoadRunIds())
 		{
-			RunArchiveMetadata runArchiveMetadata = _archiveStore.LoadRunMetadata(item);
-			IReadOnlyList<SaveArchiveMetadata> readOnlyList = _archiveStore.LoadSnapshotsForRun(item, SaveArchiveKind.Auto);
-			IReadOnlyList<SaveArchiveMetadata> readOnlyList2 = _archiveStore.LoadSnapshotsForRun(item, SaveArchiveKind.Manual);
-			SaveArchiveMetadata saveArchiveMetadata = (from snapshot in readOnlyList.Concat(readOnlyList2)
-				orderby snapshot.CreatedUtc descending
-				select snapshot).FirstOrDefault();
-			if (saveArchiveMetadata != null)
+			var autosaves = _archiveStore.LoadSnapshotsForRun(runId, SaveArchiveKind.Auto);
+			var manualSaves = _archiveStore.LoadSnapshotsForRun(runId, SaveArchiveKind.Manual);
+			foreach (SaveArchiveMetadata snapshot in autosaves.Concat(manualSaves))
 			{
-				list.Add(new RunArchiveRecord
+				PopulateLegacyTotalFloor(snapshot);
+			}
+			SaveArchiveMetadata? latest = autosaves.Concat(manualSaves).MaxBy(snapshot => snapshot.CreatedUtc);
+			if (latest != null)
+			{
+				runs.Add(new RunArchiveRecord
 				{
-					RunId = item,
-					AutoSaveCount = readOnlyList.Count,
-					ManualSaveCount = readOnlyList2.Count,
-					LatestSaveUtc = saveArchiveMetadata?.CreatedUtc,
-					LatestSummary = saveArchiveMetadata?.Summary,
-					Note = NormalizeNote(runArchiveMetadata?.Note)
+					RunId = runId,
+					AutoSnapshots = autosaves,
+					ManualSnapshots = manualSaves,
+					LatestSaveUtc = latest.CreatedUtc,
+					LatestSummary = latest.Summary,
+					Note = NormalizeNote(_archiveStore.LoadRunMetadata(runId)?.Note)
 				});
 			}
 		}
-		return list.OrderByDescending((RunArchiveRecord record) => record.LatestSaveUtc).ToList();
+		return runs.OrderByDescending(run => run.LatestSaveUtc).ToList();
 	}
 
-	public IReadOnlyList<SaveArchiveMetadata> ListSnapshots(string runId, SaveArchiveKind kind)
+	private void PopulateLegacyTotalFloor(SaveArchiveMetadata snapshot)
 	{
-		return _archiveStore.LoadSnapshotsForRun(runId, kind);
-	}
-
-	public bool RestoreSnapshot(SaveArchiveMetadata metadata)
-	{
-		bool flag = _archiveStore.TryRestoreSnapshot(metadata);
-		if (flag)
+		if (!snapshot.Summary.SummaryAvailable || snapshot.Summary.TotalFloor.HasValue)
 		{
-			metadata.LastRestoredUtc = DateTimeOffset.UtcNow;
-			_archiveStore.TryUpdateSnapshotMetadata(metadata);
-			Log.Info($"NyMod.Saves restored snapshot '{metadata.SaveId}' for run '{metadata.RunId}'", 2);
+			return;
 		}
-		return flag;
+		try
+		{
+			byte[] payload = _archiveStore.ReadSnapshotPayload(snapshot);
+			snapshot.Summary.TotalFloor = _summaryFactory.Create(payload).TotalFloor;
+		}
+		catch (IOException ex)
+		{
+			Log.Warn($"NyMod.Saves could not read the floor for snapshot '{snapshot.SaveId}': {ex.Message}", 2);
+		}
+		catch (UnauthorizedAccessException ex)
+		{
+			Log.Warn($"NyMod.Saves could not read the floor for snapshot '{snapshot.SaveId}': {ex.Message}", 2);
+		}
+	}
+
+	public bool HasSnapshots()
+	{
+		return _archiveStore.HasSnapshots();
+	}
+
+	public SnapshotRestore PrepareRestore(SaveArchiveMetadata metadata)
+	{
+		return _archiveStore.PrepareRestore(metadata);
+	}
+
+	public void MarkRestored(SaveArchiveMetadata metadata)
+	{
+		metadata.LastRestoredUtc = DateTimeOffset.UtcNow;
+		try
+		{
+			_archiveStore.TryUpdateSnapshotMetadata(metadata);
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves loaded '{metadata.SaveId}', but could not update its metadata: {ex}", 2);
+		}
 	}
 
 	public string? BackupSnapshot(SaveArchiveMetadata metadata)
@@ -169,29 +227,28 @@ internal sealed class SaveArchiveService
 		return _archiveStore.TryGetSnapshotDirectory(metadata, out snapshotDirectory);
 	}
 
-	private bool IsDuplicateOfLatest(SaveArchiveMetadata candidate)
+	private bool IsDuplicateOfLatest(SaveArchiveMetadata candidate, byte[] payload)
 	{
-		SaveArchiveMetadata saveArchiveMetadata = _archiveStore.LoadSnapshotsForRun(candidate.RunId, candidate.Kind).FirstOrDefault();
-		if (saveArchiveMetadata == null)
+		SaveArchiveMetadata? latest = _archiveStore.LoadSnapshotsForRun(candidate.RunId, candidate.Kind).FirstOrDefault();
+		if (latest == null)
 		{
 			return false;
 		}
-		return AreSummariesEquivalent(saveArchiveMetadata.Summary, candidate.Summary);
-	}
-
-	private static bool AreSummariesEquivalent(SaveArchiveSummary? a, SaveArchiveSummary? b)
-	{
-		if (a == null || b == null || !a.SummaryAvailable || !b.SummaryAvailable)
+		try
 		{
+			return payload.AsSpan().SequenceEqual(_archiveStore.ReadSnapshotPayload(latest));
+		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves could not compare the previous autosave: {ex.Message}", 2);
 			return false;
 		}
-		return a.CurrentActIndex == b.CurrentActIndex && a.EstimatedFloor == b.EstimatedFloor && a.CurrentHp == b.CurrentHp && a.MaxHp == b.MaxHp && a.Gold == b.Gold && a.Ascension == b.Ascension && a.PlayerCount == b.PlayerCount && a.GameMode == b.GameMode && a.CharacterIds.SequenceEqual(b.CharacterIds);
 	}
 
 	private static string BuildSaveId(SaveArchiveKind kind, DateTimeOffset createdUtc)
 	{
 		string value = ((kind == SaveArchiveKind.Auto) ? "auto" : "manual");
-		return $"{value}_{createdUtc:yyyyMMdd_HHmmss_fff}";
+		return $"{value}_{createdUtc:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}";
 	}
 
 	private static string? NormalizeNote(string? note)

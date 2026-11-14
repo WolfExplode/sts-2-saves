@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace NyMod.Saves.Features.SaveArchive.Models;
@@ -10,10 +11,16 @@ internal sealed class RunArchiveRecord
 
 
 	[JsonPropertyName("auto_save_count")]
-	public int AutoSaveCount { get; set; }
+	public int AutoSaveCount => AutoSnapshots.Count;
 
 	[JsonPropertyName("manual_save_count")]
-	public int ManualSaveCount { get; set; }
+	public int ManualSaveCount => ManualSnapshots.Count;
+
+	[JsonIgnore]
+	public IReadOnlyList<SaveArchiveMetadata> AutoSnapshots { get; init; } = Array.Empty<SaveArchiveMetadata>();
+
+	[JsonIgnore]
+	public IReadOnlyList<SaveArchiveMetadata> ManualSnapshots { get; init; } = Array.Empty<SaveArchiveMetadata>();
 
 	[JsonPropertyName("latest_save_utc")]
 	public DateTimeOffset? LatestSaveUtc { get; set; }

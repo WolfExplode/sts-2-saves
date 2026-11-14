@@ -49,7 +49,7 @@ internal sealed class SaveArchiveSummaryFactory
 				RunTime = saveData.RunTime,
 				Ascension = saveData.Ascension,
 				CurrentActIndex = saveData.CurrentActIndex,
-				EstimatedFloor = saveData.VisitedMapCoords.Count,
+				TotalFloor = saveData.MapPointHistory.Sum(actHistory => actHistory.Count),
 				CurrentHp = ((val2 != null) ? new int?(val2.CurrentHp) : null),
 				MaxHp = ((val2 != null) ? new int?(val2.MaxHp) : null),
 				Gold = ((val2 != null) ? new int?(val2.Gold) : null)

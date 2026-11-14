@@ -18,6 +18,7 @@ public class Entry
 		ServiceRegistry.Initialize();
 		Harmony val = new Harmony("nymod.saves");
 		val.PatchAll();
+		GameLoadTimingHooks.Install(val);
 		SaveUiLocalizationInstaller.Install();
 		ModDiagnostics.Trace("Initialization complete");
 		Log.Info("NyMod.Saves initialized", 2);

@@ -36,8 +36,9 @@
   "SAVE_BROWSER.noteDialog.label.snapshot": "为这个归档快照添加或编辑备注。",
   "SAVE_BROWSER.noteDialog.label.run": "为这个归档局面添加或编辑备注。",
   "POPUP.loadFailed.title": "读取失败",
-  "POPUP.loadFailed.restoreFailed.body": "无法将所选快照恢复到当前活动存档槽位。",
+  "POPUP.loadFailed.restoreFailed.body": "无法加载此存档。您之前的存档文件仍然可用。",
   "POPUP.loadFailed.singleplayerUnreadable.body": "游戏无法读取恢复后的单人存档。",
   "POPUP.openFolderFailed.title": "打开文件夹失败",
-  "POPUP.openFolderFailed.body": "无法打开存档归档文件夹：\n{Path}"
+  "POPUP.openFolderFailed.body": "无法打开存档归档文件夹：\n{Path}",
+  "POPUP.loadFailed.recoveryFailed.body": "无法加载此存档，且恢复未能完成。请重启游戏，并检查存档目录的 rollback 文件夹中是否有之前的存档副本。"
 }

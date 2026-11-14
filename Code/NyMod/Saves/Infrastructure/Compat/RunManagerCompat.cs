@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
@@ -8,58 +9,26 @@ namespace NyMod.Saves.Infrastructure.Compat;
 
 internal static class RunManagerCompat
 {
-	private static MethodInfo? _setUpSavedSinglePlayer;
-
-	private static bool _returnsTask;
-
-	private static bool _initialized;
-
-	private static readonly object _gate = new object();
-
-	private static void EnsureInit()
-	{
-		if (_initialized)
-		{
-			return;
-		}
-		lock (_gate)
-		{
-			if (!_initialized)
-			{
-				Type typeFromHandle = typeof(RunManager);
-				_setUpSavedSinglePlayer = typeFromHandle.GetMethod("SetUpSavedSingleplayer", BindingFlags.Instance | BindingFlags.Public, null, new Type[2]
-				{
-					typeof(RunState),
-					typeof(SerializableRun)
-				}, null);
-				_returnsTask = _setUpSavedSinglePlayer != null && typeof(Task).IsAssignableFrom(_setUpSavedSinglePlayer.ReturnType);
-				_initialized = true;
-			}
-		}
-	}
+	// Desktop and Android builds expose synchronous and asynchronous versions.
+	private static readonly MethodInfo SetUpSavedRun = typeof(RunManager).GetMethod(
+		"SetUpSavedSingleplayer", new[] { typeof(RunState), typeof(SerializableRun) })
+		?? throw new MissingMethodException("RunManager", "SetUpSavedSingleplayer");
 
 	public static async Task SetUpSavedSinglePlayer(RunManager instance, RunState state, SerializableRun save)
 	{
-		EnsureInit();
-		if (_setUpSavedSinglePlayer == null)
+		object? result;
+		try
 		{
-			throw new MissingMethodException("RunManager", "SetUpSavedSinglePlayer");
+			result = SetUpSavedRun.Invoke(instance, new object[] { state, save });
 		}
-		object result = _setUpSavedSinglePlayer.Invoke(instance, new object[2] { state, save });
-		Task task = default(Task);
-		int num;
-		if (_returnsTask)
+		catch (TargetInvocationException ex) when (ex.InnerException != null)
 		{
-			task = result as Task;
-			num = ((task != null) ? 1 : 0);
+			ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+			throw;
 		}
-		else
+		if (result is Task task)
 		{
-			num = 0;
-		}
-		if (num != 0)
-		{
-			await task.ConfigureAwait(continueOnCapturedContext: true);
+			await task;
 		}
 	}
 }

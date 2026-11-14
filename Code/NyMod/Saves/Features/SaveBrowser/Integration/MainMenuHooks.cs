@@ -22,7 +22,7 @@ internal static class MainMenuHooks
 	[HarmonyPostfix]
 	private static void RefreshButtonsPostfix(NMainMenu __instance)
 	{
-		bool visible = ServiceRegistry.ArchiveService.ListRuns().Count > 0;
+		bool visible = ServiceRegistry.ArchiveService.HasSnapshots();
 		Traverse val = Traverse.Create((object)__instance);
 		NMainMenuTextButton value = val.Field("_continueButton").GetValue<NMainMenuTextButton>();
 		NMainMenuTextButton value2 = val.Field("_abandonRunButton").GetValue<NMainMenuTextButton>();

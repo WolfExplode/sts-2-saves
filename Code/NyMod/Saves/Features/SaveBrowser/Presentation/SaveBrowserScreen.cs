@@ -5,6 +5,7 @@ using Godot;
 using Godot.Bridge;
 using Godot.NativeInterop;
 using MegaCrit.Sts2.Core.Assets;
+using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
@@ -29,6 +30,8 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 	private readonly Dictionary<string, RunArchiveRecord> _runsById = new Dictionary<string, RunArchiveRecord>(StringComparer.Ordinal);
 
 	private bool _launchedFromRun;
+
+	private bool _loading;
 
 	private Tree _tree = null;
 
@@ -66,10 +69,6 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 	public void Configure(bool launchedFromRun)
 	{
 		_launchedFromRun = launchedFromRun;
-		if (((Node)this).IsNodeReady())
-		{
-			Refresh();
-		}
 	}
 
 	public override void _Ready()
@@ -79,29 +78,12 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		ConnectSignals();
 		ConnectViewportSignals();
 		ApplyViewportLayout();
-		Refresh();
 		_wasVisibleForMainMenuRefresh = ((CanvasItem)this).Visible;
 		((CanvasItem)this).VisibilityChanged += OnVisibilityChangedRefreshMainMenu;
 	}
 
 	protected override void ConnectSignals()
 	{
-		//IL_001f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0025: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0042: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0048: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0065: Unknown result type (might be due to invalid IL or missing references)
-		//IL_006b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0088: Unknown result type (might be due to invalid IL or missing references)
-		//IL_008e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ab: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00b1: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00ce: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00d4: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f1: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f7: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0114: Unknown result type (might be due to invalid IL or missing references)
-		//IL_011a: Unknown result type (might be due to invalid IL or missing references)
 		base.ConnectSignals();
 		((GodotObject)_tree).Connect(Tree.SignalName.ItemSelected, Callable.From((Action)OnItemSelected), 0u);
 		((GodotObject)_loadButton).Connect(BaseButton.SignalName.Pressed, Callable.From((Action)OnLoadPressed), 0u);
@@ -131,8 +113,6 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 	private void ConnectViewportSignals()
 	{
-		//IL_0023: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0029: Unknown result type (might be due to invalid IL or missing references)
 		Viewport viewport = ((Node)this).GetViewport();
 		if (viewport != null)
 		{
@@ -142,10 +122,6 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 	private void ApplyViewportLayout()
 	{
-		//IL_000c: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0019: Unknown result type (might be due to invalid IL or missing references)
-		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0021: Unknown result type (might be due to invalid IL or missing references)
 		((Control)this).SetAnchorsPreset((LayoutPreset)0, false);
 		((Control)this).Position = Vector2.Zero;
 		Rect2 viewportRect = ((CanvasItem)this).GetViewportRect();
@@ -154,35 +130,6 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 	private void BuildUi()
 	{
-		//IL_0013: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0018: Unknown result type (might be due to invalid IL or missing references)
-		//IL_002d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0039: Expected O, but got Unknown
-		//IL_004f: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0055: Expected O, but got Unknown
-		//IL_00b7: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00bd: Expected O, but got Unknown
-		//IL_00ee: Unknown result type (might be due to invalid IL or missing references)
-		//IL_00f8: Expected O, but got Unknown
-		//IL_0120: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0126: Expected O, but got Unknown
-		//IL_0156: Unknown result type (might be due to invalid IL or missing references)
-		//IL_015d: Expected O, but got Unknown
-		//IL_017d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0195: Unknown result type (might be due to invalid IL or missing references)
-		//IL_019f: Expected O, but got Unknown
-		//IL_01e5: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0200: Unknown result type (might be due to invalid IL or missing references)
-		//IL_021b: Unknown result type (might be due to invalid IL or missing references)
-		//IL_024a: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0266: Unknown result type (might be due to invalid IL or missing references)
-		//IL_026d: Expected O, but got Unknown
-		//IL_028d: Unknown result type (might be due to invalid IL or missing references)
-		//IL_02b9: Unknown result type (might be due to invalid IL or missing references)
-		//IL_02c3: Expected O, but got Unknown
-		//IL_0316: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0332: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0339: Expected O, but got Unknown
 		((Node)this).ProcessMode = (ProcessModeEnum)3;
 		((Control)this).MouseFilter = (MouseFilterEnum)0;
 		ColorRect val = new ColorRect
@@ -229,7 +176,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		VBoxContainer val6 = new VBoxContainer();
 		((Control)val6).SizeFlagsHorizontal = (Control.SizeFlags)1;
 		((Control)val6).SizeFlagsVertical = (Control.SizeFlags)3;
-		((Control)val6).CustomMinimumSize = new Vector2(360f, 0f);
+		((Control)val6).CustomMinimumSize = new Vector2(416f, 0f);
 		((Control)val6).AddThemeConstantOverride((StringName)("separation"), 12);
 		((Node)val4).AddChild((Node)(object)val6, false, (Node.InternalMode)0);
 		_details = new RichTextLabel();
@@ -269,22 +216,18 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 	private static Button CreateActionButton(string text)
 	{
-		//IL_0001: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0006: Unknown result type (might be due to invalid IL or missing references)
-		//IL_000e: Unknown result type (might be due to invalid IL or missing references)
-		//IL_0018: Expected O, but got Unknown
-		return new Button
+		var button = new Button
 		{
 			Text = text,
-			SizeFlagsHorizontal = (Control.SizeFlags)3
+			CustomMinimumSize = new Vector2(0f, 48f),
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
 		};
+		button.AddThemeFontSizeOverride("font_size", 20);
+		return button;
 	}
 
 	private void Refresh(string? preferredKey = null)
 	{
-		//IL_00f5: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01b2: Unknown result type (might be due to invalid IL or missing references)
-		//IL_01b7: Unknown result type (might be due to invalid IL or missing references)
 		_snapshotsByKey.Clear();
 		_runsByKey.Clear();
 		_runsById.Clear();
@@ -306,8 +249,8 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 			{
 				preferredItem = val2;
 			}
-			AddSaveGroup(val2, item.RunId, SaveArchiveKind.Auto, "SAVE_BROWSER.group.auto", preferredKey, ref firstSnapshotItem, ref preferredItem);
-			AddSaveGroup(val2, item.RunId, SaveArchiveKind.Manual, "SAVE_BROWSER.group.manual", preferredKey, ref firstSnapshotItem, ref preferredItem);
+			AddSaveGroup(val2, item.AutoSnapshots, "SAVE_BROWSER.group.auto", preferredKey, ref firstSnapshotItem, ref preferredItem);
+			AddSaveGroup(val2, item.ManualSnapshots, "SAVE_BROWSER.group.manual", preferredKey, ref firstSnapshotItem, ref preferredItem);
 		}
 		TreeItem val3 = preferredItem ?? firstSnapshotItem;
 		if (val3 == null)
@@ -326,10 +269,8 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		}
 	}
 
-	private void AddSaveGroup(TreeItem runItem, string runId, SaveArchiveKind kind, string labelKey, string? preferredKey, ref TreeItem? firstSnapshotItem, ref TreeItem? preferredItem)
+	private void AddSaveGroup(TreeItem runItem, IReadOnlyList<SaveArchiveMetadata> readOnlyList, string labelKey, string? preferredKey, ref TreeItem? firstSnapshotItem, ref TreeItem? preferredItem)
 	{
-		//IL_013b: Unknown result type (might be due to invalid IL or missing references)
-		IReadOnlyList<SaveArchiveMetadata> readOnlyList = ServiceRegistry.ArchiveService.ListSnapshots(runId, kind);
 		TreeItem val = _tree.CreateItem(runItem, -1);
 		val.SetText(0, SaveUiText.Format(labelKey, ("Count", readOnlyList.Count)));
 		val.SetSelectable(0, false);
@@ -354,8 +295,6 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 	private void OnItemSelected()
 	{
-		//IL_0016: Unknown result type (might be due to invalid IL or missing references)
-		//IL_001b: Unknown result type (might be due to invalid IL or missing references)
 		TreeItem selected = _tree.GetSelected();
 		object selectedKey;
 		if (selected == null)
@@ -393,36 +332,39 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 
 	private void UpdateActionButtons()
 	{
-		bool flag = _selectedKey != null && _snapshotsByKey.ContainsKey(_selectedKey);
-		bool flag2 = _selectedKey != null && (_runsByKey.ContainsKey(_selectedKey) || flag);
-		((BaseButton)_loadButton).Disabled = !flag;
-		((BaseButton)_deleteSaveButton).Disabled = !flag;
-		((BaseButton)_backupButton).Disabled = !flag2;
-		((BaseButton)_openFolderButton).Disabled = !flag2;
-		((BaseButton)_editNoteButton).Disabled = !flag2;
-		((BaseButton)_deleteRunButton).Disabled = !flag2;
-		((BaseButton)_abandonRunButton).Disabled = !flag2;
+		bool snapshotSelected = !_loading && _selectedKey != null && _snapshotsByKey.ContainsKey(_selectedKey);
+		bool runSelected = !_loading && _selectedKey != null && (_runsByKey.ContainsKey(_selectedKey) || snapshotSelected);
+		((BaseButton)_loadButton).Disabled = !snapshotSelected;
+		((BaseButton)_deleteSaveButton).Disabled = !snapshotSelected;
+		((BaseButton)_backupButton).Disabled = !runSelected;
+		((BaseButton)_openFolderButton).Disabled = !runSelected;
+		((BaseButton)_editNoteButton).Disabled = !runSelected;
+		((BaseButton)_deleteRunButton).Disabled = !runSelected;
+		((BaseButton)_abandonRunButton).Disabled = !runSelected;
 	}
 
 	private async void OnLoadPressed()
 	{
-		if (_selectedKey == null || !_snapshotsByKey.TryGetValue(_selectedKey, out SaveArchiveMetadata save))
+		if (_loading || _selectedKey == null || !_snapshotsByKey.TryGetValue(_selectedKey, out SaveArchiveMetadata save))
 		{
 			return;
 		}
-		if (_loadButton != null)
-		{
-			((BaseButton)_loadButton).Disabled = true;
-		}
+		_loading = true;
+		UpdateActionButtons();
 		try
 		{
 			await SaveBrowserCoordinator.LoadSnapshotAsync(save, _launchedFromRun);
 		}
+		catch (Exception ex)
+		{
+			Log.Warn($"NyMod.Saves could not finish the load request: {ex}", 2);
+		}
 		finally
 		{
-			if (_loadButton != null && GodotObject.IsInstanceValid((GodotObject)(object)_loadButton))
+			_loading = false;
+			if (GodotObject.IsInstanceValid(this) && IsInsideTree())
 			{
-				((BaseButton)_loadButton).Disabled = false;
+				UpdateActionButtons();
 			}
 		}
 	}
@@ -514,7 +456,10 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 			SaveManager.Instance.DeleteCurrentRun();
 		}
 		ServiceRegistry.ArchiveService.DeleteRun(runId);
-		Refresh();
+		if (GodotObject.IsInstanceValid(this) && IsInsideTree())
+		{
+			Refresh();
+		}
 		SaveBrowserCoordinator.RefreshMainMenuAfterArchiveChange();
 	}
 
@@ -547,7 +492,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 	private static string BuildSaveLabel(SaveArchiveMetadata save)
 	{
 		string item = SaveUiText.Get((save.Kind == SaveArchiveKind.Auto) ? "COMMON.auto" : "COMMON.manual");
-		return save.Summary.SummaryAvailable ? SaveUiText.Format("SAVE_BROWSER.saveLabel", ("Kind", item), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.EstimatedFloor), ("Created", save.CreatedUtc.LocalDateTime.ToString("g"))) : SaveUiText.Format("SAVE_BROWSER.saveLabelUnavailable", ("Kind", item), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")));
+		return save.Summary.SummaryAvailable ? SaveUiText.Format("SAVE_BROWSER.saveLabel", ("Kind", item), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.TotalFloor?.ToString() ?? SaveUiText.Get("COMMON.unknown")), ("Created", save.CreatedUtc.LocalDateTime.ToString("g"))) : SaveUiText.Format("SAVE_BROWSER.saveLabelUnavailable", ("Kind", item), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")));
 	}
 
 	private static string BuildSnapshotDetails(SaveArchiveMetadata save, string? runNote)
@@ -562,7 +507,7 @@ internal sealed partial class SaveBrowserScreen : NSubmenu
 		string item2 = save.Summary.Gold?.ToString() ?? SaveUiText.Get("COMMON.unknown");
 		string item3 = save.Summary.DailyTime?.LocalDateTime.ToString("g") ?? SaveUiText.Get("COMMON.none");
 		string item4 = SaveUiText.Get((save.Kind == SaveArchiveKind.Auto) ? "COMMON.auto" : "COMMON.manual");
-		string text3 = SaveUiText.Format("SAVE_BROWSER.snapshotDetails", ("SaveId", save.SaveId), ("RunId", save.RunId), ("Kind", item4), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.EstimatedFloor), ("Ascension", save.Summary.Ascension), ("Hp", item), ("Gold", item2), ("Daily", item3), ("Platform", save.Summary.PlatformType));
+		string text3 = SaveUiText.Format("SAVE_BROWSER.snapshotDetails", ("SaveId", save.SaveId), ("RunId", save.RunId), ("Kind", item4), ("Created", save.CreatedUtc.LocalDateTime.ToString("g")), ("Characters", string.Join(", ", save.Summary.CharacterIds)), ("Act", save.Summary.CurrentActIndex + 1), ("Floor", save.Summary.TotalFloor?.ToString() ?? SaveUiText.Get("COMMON.unknown")), ("Ascension", save.Summary.Ascension), ("Hp", item), ("Gold", item2), ("Daily", item3), ("Platform", save.Summary.PlatformType));
 		return text3 + "\n" + SaveUiText.Format("SAVE_BROWSER.note.snapshot", ("Note", save.Note ?? text)) + "\n" + SaveUiText.Format("SAVE_BROWSER.note.run", ("Note", runNote ?? text));
 	}
 

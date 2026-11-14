@@ -16,14 +16,6 @@ internal sealed class SaveManagerConfig
 	public int AutosaveCapPerRun { get; set; } = 100;
 
 
-	[JsonPropertyName("manual_names_include_sequence")]
-	public bool ManualNamesIncludeSequence { get; set; } = true;
-
-
-	[JsonPropertyName("confirm_run_deletion")]
-	public bool ConfirmRunDeletion { get; set; } = true;
-
-
 	[JsonPropertyName("skip_duplicate_autosaves")]
 	public bool SkipDuplicateAutosaves { get; set; } = true;
 

@@ -48,26 +48,34 @@ internal sealed class SaveArchiveStore
 		return true;
 	}
 
-	public void SaveSnapshot(SaveArchiveMetadata metadata, byte[] payloadBytes)
+	public bool SaveSnapshot(SaveArchiveMetadata metadata, byte[] payloadBytes)
 	{
-		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath))
+		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string? payloadPath) || string.IsNullOrEmpty(payloadPath)
+			|| !_pathResolver.TryGetMetadataPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string? metadataPath) || string.IsNullOrEmpty(metadataPath))
 		{
-			Log.Warn("NyMod.Saves could not resolve payload path for snapshot '" + metadata.SaveId + "'.", 2);
-			return;
+			return false;
 		}
-		if (!_pathResolver.TryGetMetadataPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string metadataPath) || string.IsNullOrEmpty(metadataPath))
+		try
 		{
-			Log.Warn("NyMod.Saves could not resolve metadata path for snapshot '" + metadata.SaveId + "'.", 2);
-			return;
+			// Publish metadata last. Readers only discover committed snapshots.
+			AtomicFile.Write(payloadPath, payloadBytes);
+			AtomicFile.Write(metadataPath, JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions));
+			return true;
 		}
-		string directoryName = Path.GetDirectoryName(payloadPath);
-		if (!string.IsNullOrEmpty(directoryName))
+		catch (Exception ex)
 		{
-			Directory.CreateDirectory(directoryName);
+			Log.Warn($"NyMod.Saves could not write snapshot '{metadata.SaveId}': {ex}", 2);
+			return false;
 		}
-		File.WriteAllBytes(payloadPath, payloadBytes);
-		File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, _jsonOptions));
-		Log.Info($"NyMod.Saves wrote snapshot payload '{payloadPath}' and metadata '{metadataPath}'.", 2);
+	}
+
+	public byte[] ReadSnapshotPayload(SaveArchiveMetadata metadata)
+	{
+		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string? path) || string.IsNullOrEmpty(path))
+		{
+			throw new IOException("Could not resolve the snapshot payload path.");
+		}
+		return File.ReadAllBytes(path);
 	}
 
 	public bool TryUpdateSnapshotMetadata(SaveArchiveMetadata metadata)
@@ -82,34 +90,46 @@ internal sealed class SaveArchiveStore
 		{
 			Directory.CreateDirectory(directoryName);
 		}
-		File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, _jsonOptions));
+		AtomicFile.Write(metadataPath, JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions));
 		return true;
 	}
 
 	public IReadOnlyList<SaveArchiveMetadata> LoadSnapshotsForRun(string runId, SaveArchiveKind kind)
 	{
-		if (!_pathResolver.TryGetSnapshotDirectory(runId, kind, out string snapshotDirectory) || string.IsNullOrEmpty(snapshotDirectory) || !Directory.Exists(snapshotDirectory))
+		return ReadSnapshots(runId, kind).OrderByDescending(snapshot => snapshot.CreatedUtc).ToList();
+	}
+
+	public bool HasSnapshots()
+	{
+		return LoadRunIds().Any(runId => ReadSnapshots(runId, SaveArchiveKind.Auto).Any()
+			|| ReadSnapshots(runId, SaveArchiveKind.Manual).Any());
+	}
+
+	private IEnumerable<SaveArchiveMetadata> ReadSnapshots(string runId, SaveArchiveKind kind)
+	{
+		if (!_pathResolver.TryGetSnapshotDirectory(runId, kind, out string? directory) || string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
 		{
-			return Array.Empty<SaveArchiveMetadata>();
+			yield break;
 		}
-		List<SaveArchiveMetadata> list = new List<SaveArchiveMetadata>();
-		foreach (string item in Directory.EnumerateFiles(snapshotDirectory, "*.json", SearchOption.TopDirectoryOnly))
+		foreach (string path in Directory.EnumerateFiles(directory, "*.json", SearchOption.TopDirectoryOnly))
 		{
+			SaveArchiveMetadata? metadata;
 			try
 			{
-				string json = File.ReadAllText(item);
-				SaveArchiveMetadata saveArchiveMetadata = JsonSerializer.Deserialize<SaveArchiveMetadata>(json, _jsonOptions);
-				if (saveArchiveMetadata != null)
-				{
-					list.Add(saveArchiveMetadata);
-				}
+				metadata = JsonSerializer.Deserialize<SaveArchiveMetadata>(File.ReadAllText(path), _jsonOptions);
 			}
 			catch (Exception ex)
 			{
-				Log.Warn("NyMod.Saves failed to read metadata '" + item + "': " + ex.Message, 2);
+				Log.Warn($"NyMod.Saves failed to read metadata '{path}': {ex.Message}", 2);
+				continue;
+			}
+			if (metadata != null && metadata.RunId == runId && metadata.Kind == kind
+				&& Path.GetFileNameWithoutExtension(path) == metadata.SaveId
+				&& metadata.Summary != null && File.Exists(Path.ChangeExtension(path, ".save")))
+			{
+				yield return metadata;
 			}
 		}
-		return list.OrderByDescending((SaveArchiveMetadata snapshot) => snapshot.CreatedUtc).ToList();
 	}
 
 	public IReadOnlyList<string> LoadRunIds()
@@ -161,7 +181,7 @@ internal sealed class SaveArchiveStore
 		{
 			Directory.CreateDirectory(directoryName);
 		}
-		File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, _jsonOptions));
+		AtomicFile.Write(metadataPath, JsonSerializer.SerializeToUtf8Bytes(metadata, _jsonOptions));
 		return true;
 	}
 
@@ -175,25 +195,16 @@ internal sealed class SaveArchiveStore
 		return _pathResolver.TryGetSnapshotDirectory(metadata.RunId, metadata.Kind, out snapshotDirectory);
 	}
 
-	public bool TryRestoreSnapshot(SaveArchiveMetadata metadata)
+	public SnapshotRestore PrepareRestore(SaveArchiveMetadata metadata)
 	{
-		if (!_pathResolver.TryGetPayloadPath(metadata.RunId, metadata.Kind, metadata.SaveId, out string payloadPath) || string.IsNullOrEmpty(payloadPath) || !File.Exists(payloadPath))
+		byte[] payload = ReadSnapshotPayload(metadata);
+		if (!_pathResolver.TryGetActiveSavePath(out string? activeSavePath) || string.IsNullOrEmpty(activeSavePath))
 		{
-			return false;
+			throw new IOException("Could not resolve the active save path.");
 		}
-		if (!_pathResolver.TryGetActiveSavePath(out string activeSavePath) || string.IsNullOrEmpty(activeSavePath))
-		{
-			return false;
-		}
+		var restore = new SnapshotRestore(activeSavePath, payload);
 		CreateRollback(activeSavePath);
-		string directoryName = Path.GetDirectoryName(activeSavePath);
-		if (!string.IsNullOrEmpty(directoryName))
-		{
-			Directory.CreateDirectory(directoryName);
-		}
-		File.Copy(payloadPath, activeSavePath, overwrite: true);
-		File.Copy(payloadPath, activeSavePath + ".backup", overwrite: true);
-		return true;
+		return restore;
 	}
 
 	public void DeleteRun(string runId)
@@ -270,7 +281,7 @@ internal sealed class SaveArchiveStore
 		if ((File.Exists(activeSavePath) || File.Exists(activeSavePath + ".backup")) && _pathResolver.TryGetRollbackDirectory(out string rollbackDirectory) && !string.IsNullOrEmpty(rollbackDirectory))
 		{
 			Directory.CreateDirectory(rollbackDirectory);
-			string text = DateTimeOffset.UtcNow.ToString("yyyyMMdd_HHmmss_fff");
+			string text = DateTimeOffset.UtcNow.ToString("yyyyMMdd_HHmmss_fff") + "_" + Guid.NewGuid().ToString("N");
 			if (File.Exists(activeSavePath))
 			{
 				File.Copy(activeSavePath, Path.Combine(rollbackDirectory, text + "_" + Path.GetFileName(activeSavePath)), overwrite: true);

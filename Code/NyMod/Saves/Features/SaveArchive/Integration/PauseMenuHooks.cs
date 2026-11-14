@@ -53,6 +53,7 @@ internal static class PauseMenuHooks
 				SaveButton = val,
 				LoadButton = val2
 			};
+			__instance2.TreeExited += () => _states.Remove(instanceId);
 			RefreshButtonState(__instance2);
 			RefreshFocusNeighbors(node);
 			ModDiagnostics.Trace("Pause menu Ready postfix complete");

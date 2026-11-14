@@ -36,8 +36,9 @@
   "SAVE_BROWSER.noteDialog.label.snapshot": "Add or edit the note for this archived snapshot.",
   "SAVE_BROWSER.noteDialog.label.run": "Add or edit the note for this archived run.",
   "POPUP.loadFailed.title": "Load Failed",
-  "POPUP.loadFailed.restoreFailed.body": "The selected snapshot could not be restored into the active save slot.",
+  "POPUP.loadFailed.restoreFailed.body": "The snapshot could not be loaded. Your previous save files are available.",
   "POPUP.loadFailed.singleplayerUnreadable.body": "The restored singleplayer save could not be read by the game.",
   "POPUP.openFolderFailed.title": "Open Folder Failed",
-  "POPUP.openFolderFailed.body": "The save archive folder could not be opened:\n{Path}"
+  "POPUP.openFolderFailed.body": "The save archive folder could not be opened:\n{Path}",
+  "POPUP.loadFailed.recoveryFailed.body": "The snapshot could not be loaded and recovery was incomplete. Restart the game and check the archive rollback folder for previous save copies."
 }
